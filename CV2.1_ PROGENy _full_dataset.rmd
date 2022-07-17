@@ -1,0 +1,703 @@
+---
+title: "CV2.1: PROGENy - full dataset"
+author: "C.deVriend"
+date: "7-4-2022"
+output: html_document
+toc: true
+toc_float: true
+number_sections: true
+theme: readable
+code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{css, echo=FALSE}
+pre {
+  max-height: 300px;
+  overflow-y: auto;
+}
+pre[class] {
+  max-height: 100px;
+}
+```
+
+```{r}
+# setup R-workflow
+# First we will start working with workflowr
+#install.packages("workflowr")
+library(workflowr)
+library(here)
+
+#wflow_start("/Users/cheye/OneDrive/Bureaublad/Radboud/Master 21-22/Internship/Data and analysis/CV2 Pathway analyses", existing = TRUE)
+#set_here(path = "C:/Users/cheye/OneDrive/Bureaublad/Radboud/Master 21-22/Internship/Data and analysis/CV2 Pathway analyses")
+# Check if i am working in correct directory
+here() 
+
+``` 
+# Pathway analysis 
+Gene expression profiles are known to provide in depth information about the status of cells. Due to the large variety of high-throughput techniques such as RNA-sequencing, the emergence of expression profile databases has become more common. As a result a variety of tools have been developed to provide aid in extracting either functional and mechanistic information of these specific expression profiles. These tools are developed to combine prior knowledge about a specific pathway with statistical methods, which leads to mechanistic insights regarding the differential activity between sample conditions. The pathway specific prior knowledge is often represented in transcriptomics as gene sets corresponding to an identical or similar biological process. The methods inferring the pathway activity are as diverse as the variety of available gene sets. 
+
+## PROGENy
+A promising tool is the Pathway RespOnsive GENes for activity inference (PROGENy), that has the ability to estimate the signaling activity of 14 pathways. This is achieved by corresponding the gene sets associated to the pathways with a linear model. PROGENy’s gene sets tends to focus on the transcriptomic footprint of the variety of processes a cell may encounter. This is in contrast to other applications that rather focus on gene expression of the pathway members only. This approach ignores the effect of post-translational modifications and only captures the experimental condition as indicated in the design. PROGENy overcame these difficulties by implementing the consensus gene signatures obtained by perturbation experiments from Schubert et al., (2018). Most importantly, this approach has been proven to be far more accurate while inferring process specific pathway activity.
+
+```{r}
+# DESeq2 data transformation ----------------------------------------------
+# load library
+library(DESeq2)
+
+# Open raw count data
+ggr.rna.counts.mat.txt <- read.delim("data/ggr.rna.counts.mat.txt.gz", row.names=1)
+
+# create sample information columns
+Sample_name<- c('d00_b1', 'd00_b2', 'd05_b1', 'd05_b2', 'd10_b1', 'd10_b2', 'd15_b1', 'd15_b2', 'd20_b1', 'd20_b2', 'd25_b1', 'd25_b2', 'd30_b1', 'd30_b2', 'd45_b1', 'd45_b2', 'd50_b1', 'd50_b2', 'd60_b1', 'd60_b2')
+Bulk_set<- c('original', 'duplicate', 'original', 'duplicate', 'original', 'duplicate', 'original', 'duplicate', 'original', 'duplicate', 'original', 'duplicate', 'original', 'duplicate', 'original', 'duplicate', 'original', 'duplicate', 'original', 'duplicate')
+Timepoint_days<-c(0,0,0.5,0.5,1,1,1.5,1.5,2,2,2.5,2.5,3,3,4.5,4.5,5,5,6,6)
+# combine columns # Sample info
+Sample_information<-data.frame(Sample_name, Bulk_set, Timepoint_days)
+
+# DESeq2 dataset
+ddsASMtime <-DESeqDataSetFromMatrix(countData = ggr.rna.counts.mat.txt, colData = Sample_information, design = ~Bulk_set + Timepoint_days)
+# filter zero counts out
+ddsASMtime<-ddsASMtime[rowSums(counts(ddsASMtime))>1,]
+# Stabalize variance
+ddsASMtime=estimateSizeFactors(ddsASMtime)
+ddsASMtime=estimateDispersions(ddsASMtime)
+gene_expr=getVarianceStabilizedData(ddsASMtime)
+```
+
+PROGENy scores have been calculated based upon the DESeq transformed data. These scores indicate the pathway activity in comparison to a control. In this case the control has been set to 0 in order to compare all timepoints to each other.
+```{r}
+# PROGENy -----------------------------------------------------------------
+# Annotate matrix with HGNC symbols
+library(biomaRt)
+mart= useDataset("hsapiens_gene_ensembl", useMart("ensembl"))
+genes= getBM(attributes = c("ensembl_gene_id", "hgnc_symbol"), values = rownames(gene_expr), mart=mart)
+matched= match(rownames(gene_expr), genes$ensembl_gene_id)
+rownames(gene_expr)=genes$hgnc_symbol[matched]
+
+# obtaining pathway scores
+# Use the Progeny function to score the expression matrix. Note that the pathway scores are with respect to controls only, this is where it gets tricky! I want to compare e.g. timepoint 0 with everything as well as the others against everything.
+# for now just see if it works and use timepoint 0 as control
+library(progeny)
+pathways=progeny(gene_expr, scale = FALSE)
+controls= Sample_information$Timepoint_days == 0
+ctl_mean= apply(pathways[controls,], 2, mean)
+ctl_sd=apply(pathways[controls,], 2,sd)
+pathways=t(apply(pathways,1,function(x) x- ctl_mean))
+pathways= apply(pathways, 1, function(x) x / ctl_sd)
+
+# Checking for differences between the groups 
+# Here I have coded how the reference 0 timepoint is different from the others using a linear model.
+library(dplyr)
+result=apply(pathways, 1, function(x) {broom::tidy(lm(x ~!controls)) %>% filter(term == "!controlsTRUE") %>% dplyr::select(-term)})
+mutate(bind_rows(result), pathway=names(result))
+```
+
+The estimates in the table above describe the pathway activity per pathway. In this case the other timepoints have been averaged and compared to zero. In particular, the EGFR pathway of the full dataset shows a significant reduction (-20.36) in pathway activaty in comparison to the 0 timepoint. The hypoxia pathway shows a significant increase (31.89) of the full datset in comparison to the 0 timpeoint. However, the largest differences in pathway activity were observed in the MAPK pathway. The full dataset showed a significant reduction (-81.67) in pathway activity in comparison to the 0 timepoint. The P53 pathway shows a more subtle increase (9.84) in pathway activity of the full dataset in comparison to the 0 timepoint. Lastly, the PI3K pathway similar to the last pathway shows a more sublte decrease (-14.22) in activty of the full dataset in comparison to the 0 timepoint. Based upon this initial exploration the EGFR, hypoxia, MAPK, P53 and the PI3K pathway might be interesting candidates for the pertubation experiments. Nevertheless, a more in depth analysis needs to be performed in order to determine pathway activity per timepoint.
+
+### Visualization of pathway activity
+#### Heatmap
+
+```{r, warning = FALSE}
+# PROGENy Visualization ---------------------------------------------------
+# Creating a heatmap; Running PROGENy to get pathway activity scores for heatmap
+# We first compute Progeny scores for every sample (with the replicates) using the normalised counts. It is worth noting that we are going to use the 100 most responsive genes per pathway. This number can be increased depending on the coverage of your experiments. For instance, the number of quantified genes for single-cell RNA-seq is smaller than for Bulk RNA-seq or microarray. In those cases, we suggest to increase the number of responsive genes to 200-500.
+# activity inference is done using a weighted sum of the model genes.  Desired top number of genes is set to 100 for each pathway according to their significance (p-value).We can run this without worrying about the order of genes in the expressing  matrix using:
+pathways_input_PROGENy<-progeny(gene_expr,scale = TRUE, organism = "Human", top= 100, perm = 1, verbose = FALSE )
+# result is activity per pathway for each sample;create hetmap for visualization
+# Don't forget to load the library
+library(pheatmap)
+# Create color palette for heatmap
+myColor<-colorRampPalette(c("darkblue", "whitesmoke", "indianred"))(100)
+pheatmap(pathways_input_PROGENy,fontsize=14, show_rownames = TRUE,color=myColor, main = "PROGENy", angle_col = 45, treeheight_col = 0, border_color = NA)
+
+# Let's make this heatmap visually nicer
+pathways_input_PROGENy_t_mean<-t(pathways_input_PROGENy)
+
+pheatmap(pathways_input_PROGENy_t_mean,fontsize=14, color = myColor, show_rownames = TRUE, cluster_cols = FALSE, main = "PROGENy", angle_col = "45", border_color = NA)
+
+pathways_input_PROGENy_t_mean<-as.data.frame(pathways_input_PROGENy_t_mean)
+# Mean day 0
+pathways_input_PROGENy_t_mean$Day_0<-rowMeans(pathways_input_PROGENy_t_mean[,c('d00_b1', 'd00_b2')], na.rm=TRUE)
+# Mean day 0.5
+pathways_input_PROGENy_t_mean$Day_0.5<-rowMeans(pathways_input_PROGENy_t_mean[,c('d05_b1', 'd05_b2')], na.rm=TRUE)
+# Mean day 1
+pathways_input_PROGENy_t_mean$Day_1<-rowMeans(pathways_input_PROGENy_t_mean[,c('d10_b1', 'd10_b2')], na.rm=TRUE)
+# Mean day 1.5
+pathways_input_PROGENy_t_mean$Day_1.5<-rowMeans(pathways_input_PROGENy_t_mean[,c('d15_b1', 'd15_b2')], na.rm=TRUE)
+# Mean day 2
+pathways_input_PROGENy_t_mean$Day_2<-rowMeans(pathways_input_PROGENy_t_mean[,c('d20_b1', 'd20_b2')], na.rm=TRUE)
+# Mean day 2.5
+pathways_input_PROGENy_t_mean$Day_2.5<-rowMeans(pathways_input_PROGENy_t_mean[,c('d25_b1', 'd25_b2')], na.rm=TRUE)
+# Mean day 3
+pathways_input_PROGENy_t_mean$Day_3<-rowMeans(pathways_input_PROGENy_t_mean[,c('d30_b1', 'd30_b2')], na.rm=TRUE)
+# Mean day 4.5
+pathways_input_PROGENy_t_mean$Day_4.5<-rowMeans(pathways_input_PROGENy_t_mean[,c('d45_b1', 'd45_b2')], na.rm=TRUE)
+# Mean day 5
+pathways_input_PROGENy_t_mean$Day_5<-rowMeans(pathways_input_PROGENy_t_mean[,c('d50_b1', 'd50_b2')], na.rm=TRUE)
+# Mean day 6
+pathways_input_PROGENy_t_mean$Day_6<-rowMeans(pathways_input_PROGENy_t_mean[,c('d60_b1', 'd60_b2')], na.rm=TRUE)
+
+# Remove old columns
+pathways_input_PROGENy_t_mean = select(pathways_input_PROGENy_t_mean, -1:-20)
+
+pheatmap(pathways_input_PROGENy_t_mean,fontsize=14, show_rownames = TRUE,color=myColor, main = "PROGENy", cluster_cols = FALSE, angle_col = "45", treeheight_col = "0", border_color = NA)
+
+```
+The heatmap above indicates the PROGENy scores designated to each of the 14 pathways. Red tiles indicate an increased activity while blue tiles indicate a decreased pathway activity. First of all it is important, to note that most timepoint duplicates seem to cluster together, indicating sample similarity as expected. However, the day 1.5 orignal and duplicate cluster further away from each other and have totally opposite pathway patterns.
+
+Quite intuitively it is clear that the beginning timepoints (e.g. day 0, 0.5 and 1) cluster together with some timepoints further down the differentiation process (e.g. day 6). This is quite interesting as this indicates similarity of activity within the differentiation stage. Within the first sample cluster (d15_b2 ~ d60_b1) an increased activity of the PI3K, EGFR, MAPK, JAK-STAT, NFkB and TNFa can be observed. In addition, the hypoxia, estrogen and P53 pathway show reduced activity in day 0, 0.5 and 1, while it upregulates at timepoint 6. Similar patterns can be observed in the Androgen and WNT pathway. However, a large variability between the first timepoint cluster is seen in pathway activity for the VEGF, TGFb and Trail pathway.
+
+The second timepoint cluster (d30_b1 ~ d45_b1) indicates an opposite pattern of the PI3K, EGFR, MAPK, JAK-STAT, NFkb and TNFa in comparison to the first time cluster. Overall it indicates an absence of acitivity of these pathways during these paticular timepoints. However, an increased activity is observed for the Estrogen and P53 pathway. 
+
+In particular the pathway patterns seem to make sense: 
+1. Similar patterns can be observed between EGFR and MAPK and PI3k, which makes sense as the EGFR pathway is upstream form MAPK and PI3K.
+2. Similar patterns can be observed between TNFa and NFKb, which makes sense as the TNFa receptor activates the NFkB pathway.
+
+#### Dotplot mean pathway activity per timepoint
+
+```{r}
+# Might be interesting to create some plots per timepoint for each pathway!
+# However, marigins are too large for 20 timepoints. Therefore I will export this data to excel, to simply take the means per timepoint for each pathway whereafter I will load it back to Rstudio.
+library("writexl")
+pathways_input_PROGENy_df<-data.frame(pathways_input_PROGENy)
+write_xlsx(pathways_input_PROGENy_df, "pathwaysprogeny.xlsx")
+# Load new data
+library("readxl")
+PROGENy_pathways_meantimepoints <- read_excel("data/PROGENy_pathways_meantimepoints.xlsx")
+# change names otherwise it will not fit in the graph
+PROGENy_pathways_meantimepoints[1,"Days"]<-"Day 0"
+PROGENy_pathways_meantimepoints[2,"Days"]<-"Day 0.5"
+PROGENy_pathways_meantimepoints[3,"Days"]<-"Day 1"
+PROGENy_pathways_meantimepoints[4,"Days"]<-"Day 1.5"
+PROGENy_pathways_meantimepoints[5,"Days"]<-"Day 2"
+PROGENy_pathways_meantimepoints[6,"Days"]<-"Day 2.5"
+PROGENy_pathways_meantimepoints[7,"Days"]<-"Day 3"
+PROGENy_pathways_meantimepoints[8,"Days"]<-"Day 4.5"
+PROGENy_pathways_meantimepoints[9,"Days"]<-"Day 5"
+PROGENy_pathways_meantimepoints[10,"Days"]<-"Day 6"
+PROGENy_pathways_meantimepoints<-as.data.frame(PROGENy_pathways_meantimepoints)
+rownames(PROGENy_pathways_meantimepoints)<-PROGENy_pathways_meantimepoints$Days
+
+# Pathways under each other in 1 graph 
+library(ggplot2)
+par(mfrow=c(4,4))
+# If you want lineplots add argument type = 'l'
+# Androgen
+plot(PROGENy_pathways_meantimepoints$Androgen, xlab = element_blank(), ylab = "Androgen", xaxt = "n")
+axis(1, at=1:10, labels = rownames(PROGENy_pathways_meantimepoints), las=2)
+# EGFR
+plot(PROGENy_pathways_meantimepoints$EGFR, xlab = element_blank(), ylab = "EGFR", xaxt = "n")
+axis(1, at=1:10, labels = rownames(PROGENy_pathways_meantimepoints), las=2)
+# Estrogen
+plot(PROGENy_pathways_meantimepoints$Estrogen, xlab = element_blank(), ylab = "Estrogen", xaxt = "n")
+axis(1, at=1:10, labels = rownames(PROGENy_pathways_meantimepoints), las=2)
+# Hypoxia
+plot(PROGENy_pathways_meantimepoints$Hypoxia, xlab = element_blank(), ylab = "Hypoxia", xaxt = "n")
+axis(1, at=1:10, labels = rownames(PROGENy_pathways_meantimepoints), las=2)
+# Jak.stat
+plot(PROGENy_pathways_meantimepoints$JAK.STAT, xlab = element_blank(), ylab = "JAK.STAT", xaxt = "n")
+axis(1, at=1:10, labels = rownames(PROGENy_pathways_meantimepoints), las=2)
+# MAPK
+plot(PROGENy_pathways_meantimepoints$MAPK, xlab = element_blank(), ylab = "MAPK", xaxt = "n")
+axis(1, at=1:10, labels = rownames(PROGENy_pathways_meantimepoints), las=2)
+# NFkB
+plot(PROGENy_pathways_meantimepoints$NFkB, xlab = element_blank(), ylab = "NFkB", xaxt = "n")
+axis(1, at=1:10, labels = rownames(PROGENy_pathways_meantimepoints), las=2)
+# p53
+plot(PROGENy_pathways_meantimepoints$p53, xlab = element_blank(), ylab = "p53", xaxt = "n")
+axis(1, at=1:10, labels = rownames(PROGENy_pathways_meantimepoints), las=2)
+# PI3K
+plot(PROGENy_pathways_meantimepoints$PI3K, xlab = element_blank(), ylab = "PI3K", xaxt = "n")
+axis(1, at=1:10, labels = rownames(PROGENy_pathways_meantimepoints), las=2)
+# TGFb
+plot(PROGENy_pathways_meantimepoints$TGFb, xlab = element_blank(), ylab = "TGFb", xaxt = "n")
+axis(1, at=1:10, labels = rownames(PROGENy_pathways_meantimepoints), las=2)
+# TNFa
+plot(PROGENy_pathways_meantimepoints$TNFa, xlab = element_blank(), ylab = "TNFa", xaxt = "n")
+axis(1, at=1:10, labels = rownames(PROGENy_pathways_meantimepoints), las=2)
+# Trail
+plot(PROGENy_pathways_meantimepoints$Trail, xlab = element_blank(), ylab = "Trail", xaxt = "n")
+axis(1, at=1:10, labels = rownames(PROGENy_pathways_meantimepoints), las=2)
+# VEGF
+plot(PROGENy_pathways_meantimepoints$VEGF, xlab = element_blank(), ylab = "VEGF", xaxt = "n")
+axis(1, at=1:10, labels = rownames(PROGENy_pathways_meantimepoints), las=2)
+# WNT
+plot(PROGENy_pathways_meantimepoints$WNT, xlab = element_blank(), ylab = "WNT", xaxt = "n")
+axis(1, at=1:10, labels = rownames(PROGENy_pathways_meantimepoints), las=2)
+```
+The graph above (which is a lot nicer if you create it in R yourself) shows the pathway activity per mean timepoint as a dot. Similar patterns can be observed between EGFR, MAPK and pI3K as well as TNFa and NFkB as mentioned previously. Another interesting observation is the expression patterns of the P53 and Androgen pathway, it seems like the androgen activity is reduced based upon p53 activation at timepoint. This makes sense as well as p53 is a negative regulator of androgen receptor expression (https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2134911/).
+
+#### Dotplot duplicate pathway activity per timepoint
+In order to further conclude if the duplicates do show similarity in their patterns. A similar dot plot has been made for the pathway activity scores for the duplicates. I decided to do this in order to see if there's is a large variation or variation as to be expected within technical duplicates.
+```{r}
+# Look at individual pathways per timepoint and duplicate
+# Use pathways_input_progeny_df for this step!
+# Row names are not that nice in this df; let's change it
+Sample_names<-c("Day_0", "Day_0_dup", "Day_0.5", "Day_0.5_dup", "Day_1", "Day_1_dup", "Day_1.5", "Day_1.5_dup", "Day_2", "Day_2_dup", "Day_2.5", "Day_2.5_dup", "Day_3", "Day_3_dup", "Day_4.5", "Day_4.5_dup", "Day_5", "Day_5_dup", "Day_6", "Day_6_dup")
+pathways_input_PROGENy_df$Sample_names<-Sample_names # add new column sample names to df
+library(tidyverse) # loading correct package to change column to rownames
+rownames(pathways_input_PROGENy_df)<-NULL # remove current rownames
+pathways_input_PROGENy_df<- column_to_rownames(pathways_input_PROGENy_df, var="Sample_names") # change rowname with appropriate label
+
+# Everything in one graph
+par(mfrow=c(4,4))
+# Androgen
+plot(pathways_input_PROGENy_df$Androgen, xlab= element_blank(), ylab="Androgen", xaxt = "n")
+axis(1, at=1:20, labels = rownames(pathways_input_PROGENy_df), las=2)
+# EGFR
+plot(pathways_input_PROGENy_df$EGFR, xlab= element_blank(), ylab="EGFR", xaxt = "n")
+axis(1, at=1:20, labels = rownames(pathways_input_PROGENy_df), las=2)
+# Estrogen
+plot(pathways_input_PROGENy_df$Estrogen, xlab= element_blank(), ylab="Estrogen", xaxt = "n")
+axis(1, at=1:20, labels = rownames(pathways_input_PROGENy_df), las=2)
+# Hypoxia
+plot(pathways_input_PROGENy_df$Hypoxia, xlab= element_blank(), ylab="Hypoxia", xaxt = "n")
+axis(1, at=1:20, labels = rownames(pathways_input_PROGENy_df), las=2)
+#JAK.STAT
+plot(pathways_input_PROGENy_df$JAK.STAT, xlab= element_blank(), ylab="JAK.STAT", xaxt = "n")
+axis(1, at=1:20, labels = rownames(pathways_input_PROGENy_df), las=2)
+# MAPK
+plot(pathways_input_PROGENy_df$MAPK, xlab= element_blank(), ylab="MAPK", xaxt = "n")
+axis(1, at=1:20, labels = rownames(pathways_input_PROGENy_df), las=2)
+# NFkB
+plot(pathways_input_PROGENy_df$NFkB, xlab= element_blank(), ylab="NFkB", xaxt = "n")
+axis(1, at=1:20, labels = rownames(pathways_input_PROGENy_df), las=2)
+# p53
+plot(pathways_input_PROGENy_df$p53, xlab= element_blank(), ylab="p53", xaxt = "n")
+axis(1, at=1:20, labels = rownames(pathways_input_PROGENy_df), las=2)
+# PI3K
+plot(pathways_input_PROGENy_df$PI3K, xlab= element_blank(), ylab="PI3K", xaxt = "n")
+axis(1, at=1:20, labels = rownames(pathways_input_PROGENy_df), las=2)
+# TGFB
+plot(pathways_input_PROGENy_df$TGFb, xlab= element_blank(), ylab="TGFb", xaxt = "n")
+axis(1, at=1:20, labels = rownames(pathways_input_PROGENy_df), las=2)
+# TNFa
+plot(pathways_input_PROGENy_df$TNFa, xlab= element_blank(), ylab="TNFa", xaxt = "n")
+axis(1, at=1:20, labels = rownames(pathways_input_PROGENy_df), las=2)
+# Trail
+plot(pathways_input_PROGENy_df$Trail, xlab= element_blank(), ylab="Trail", xaxt = "n")
+axis(1, at=1:20, labels = rownames(pathways_input_PROGENy_df), las=2)
+# VEGF
+plot(pathways_input_PROGENy_df$VEGF, xlab= element_blank(), ylab="VEGF", xaxt = "n")
+axis(1, at=1:20, labels = rownames(pathways_input_PROGENy_df), las=2)
+# WNT
+plot(pathways_input_PROGENy_df$WNT, xlab= element_blank(), ylab="WNT", xaxt = "n")
+axis(1, at=1:20, labels = rownames(pathways_input_PROGENy_df), las=2)
+
+```
+The graph above (which is a lot nicer if you create it in R yourself) shows the pathway activity per timepoint and duplicate as a dot. The variation between duplicates seems as expected over most pathways. However, more variation between duplicate pathway activities can be observed for the JAK.STAT pathway. Nevertheless, it seems acceptable so the figure of the mean timepoint data might be more interesting for publishing purposes.
+
+### Pathway correlations
+The similar patterns seen for multiple pathways such as JAK.STAT, PI3K, EGFR, MAPK, NFkB and TNFa may suggest possible interplay/singaling between those pathways. Therefore an extensive correlation analysis will be performed using the mean pathway activity scores per timepoint.
+
+These results indicate that the similarity in pathway patterns are due to large correlations between those patterns substantiating the suggestion that these pathways are connected in their signaling activities.
+
+```{r, warning=FALSE}
+# Use the following df: PROGENy_pathways_meantimepoints
+PROGENy_mean_pathway_activities<-PROGENy_pathways_meantimepoints[-c(8,9),] # Remove NA rows and put in new df
+
+# Remove column with days
+PROGENy_mean_pathway_activities<-subset(PROGENy_mean_pathway_activities, select = -c(Days))
+
+# Create corr matrix
+Pathway_correlations<-cor(PROGENy_mean_pathway_activities) # This functions gives us the correlation coefficients between the possible pairs of variables
+
+# The function rcorr() [in Hmisc package] can be used to compute the significance levels for pearson and spearman correlations. It returns both the correlation coefficients and the p-value of the correlation for all possible pairs of columns in the data table.
+# Load library
+#install.packages("Hmisc")
+library(Hmisc)
+# convert to matrix: MAKE SURE TO DO THIS OTHERWISE YOU'LL KEEP GETTING THE ERROR: "Error in storage.mode(x) <- "double"  'list' object cannot be coerced to type 'double' "
+PROGENy_mean_pathway_activities<-as.matrix(PROGENy_mean_pathway_activities) 
+
+# calculate correlation and p-values
+Pathway_correlation_significance<-rcorr(PROGENy_mean_pathway_activities, type = c("pearson"))  
+
+# Start formatting the correlation matrix; convert to table with 4 columns containing:
+# 1. row names (variable 1 for corr test)
+# 2. col names (var 2 for corr test)
+# 3. corr coefficients
+# 4. P-values of corr
+
+#--------------
+# Install function
+# ++++++++++++++++++++++++++++
+# flattenCorrMatrix
+# ++++++++++++++++++++++++++++
+# cormat : matrix of the correlation coefficients
+# pmat : matrix of the correlation p-values
+flattenCorrMatrix <- function(cormat, pmat) {
+  ut <- upper.tri(cormat)
+  data.frame(
+    row = rownames(cormat)[row(cormat)[ut]],
+    column = rownames(cormat)[col(cormat)[ut]],
+    cor  =(cormat)[ut],
+    p = pmat[ut]
+    )
+}
+
+#------------
+
+# Start formatting
+Pathway_correlation_significance_formatted<-rcorr(PROGENy_mean_pathway_activities)
+flattenCorrMatrix(Pathway_correlation_significance$r, Pathway_correlation_significance$P)
+
+# Symnum() function; change numbers to symbols for easier understanding!
+# x: the correlation matrix to visualize
+# cutpoints: correlation coefficient cutpoints. The correlation coefficients between 0 and 0.3 are #replaced by a space (" “); correlation coefficients between 0.3 and 0.6 are replace by”.“; etc … symbols : the symbols to use. 
+# abbr.colnames: logical value. If TRUE, colnames are abbreviated.
+pathway_correlations_symnum<-symnum(Pathway_correlations, abbr.colnames = FALSE)
+print(paste("pathway correlations"))
+pathway_correlations_symnum
+
+# Visualize results using corrplot: Draw a correlogram
+# Install package/library
+#install.packages("corrplot")
+library(corrplot)
+# First a corrplot of the correlations only so use "Pathway_correlations")
+corrplot(Pathway_correlations, type = "upper", order = "hclust", tl.col = "black", tl.srt = 45) 
+# the correlation matrix is reordered according to the correlation coefficient using "hclust" method
+# tl.col (for text label color) and tl.srt (for text label string rotation) are used to change text colors and rotations
+# Possible values for the argument tye are: "upper", "lower", "full"
+# Positive correlations are displayed in blue, and negative correlations in red. color intensity and the size of the circle ar proportional to the correlation coefficients. in the right side of the correlogram, the lengend colors show the correlation coefficients and the corresponding colors.
+
+# However something that is way more interesting is combining the correlations with the significance of those correlations. Therefore, the following analysis will combine these.
+# This piece of code will make sure the non-significant correlations are left out of the graph
+#corrplot(Pathway_correlation_significance$r, type = "upper", order = "hclust", p.mat = Pathway_correlation_significance$P, sig.level = 0.05, insig = "blank", tl.col = "black", tl.srt = 45) # Use this line to determine the significant correlations, i used a # here as it otherwise crashes during knitting
+```
+
+### Pathway enrichment
+It is of interest to determine if there are certain gene sets/pathways that show enrichment during the variety of timepoints. Therefore, a PROGENy based GSEA has been performed. The outcome will be the normalized enrichment score (NES) per pathway.
+```{r}
+# Prepare data 
+# use the ddsASM object again which was made previously in this document
+Differentialexpressiontotalset<- DESeq(ddsASMtime)
+diffexpranalysisresults<-results(Differentialexpressiontotalset)
+# Sort on p-value
+diffexpranalysisresults<-diffexpranalysisresults[order(diffexpranalysisresults$padj),]
+# Create data matrix that only contains the t-values and ID's
+ttop_diffexpr_matrix<-data.frame(diffexpranalysisresults$stat)
+ttop_diffexpr_matrix$ID<- rownames(diffexpranalysisresults) # now we have ensembl ID's and Test-statistic next to each other.
+
+# change ID's to Gene symbols
+martgsea<-useDataset("hsapiens_gene_ensembl", useMart("ensembl"))
+genesgsea<-ttop_diffexpr_matrix$ID
+Gene_gsea_list <- getBM(filters = "ensembl_gene_id", attributes = c("ensembl_gene_id", "hgnc_symbol"), values = genesgsea, mart = martgsea) # This is a very important piece of code it makes a new df in which the genes from your file are matched to the symbol!!! # this takes a while
+```
+```{r}
+
+# Finally create the dataset that has matched symbol and ID values; it finally works!
+Merged_gsea<-merge(ttop_diffexpr_matrix, Gene_gsea_list, by.x="ID", by.y="ensembl_gene_id")
+# Change column names; this is easier for the next piece of code # This merged set contains 21446 rows/genes
+names(Merged_gsea)[1]<-"Ensembl_ID"
+names(Merged_gsea)[2]<-"t"
+names(Merged_gsea)[3]<-"ID"
+# Remove Ensembl_id
+Unique_Merged_gsea<-Merged_gsea %>%
+  dplyr::select(ID, t) %>% 
+  dplyr::filter(!is.na(t))
+# Replace empty cells with NA
+Unique_Merged_gsea[Unique_Merged_gsea == ""] <- NA
+# Remove NA's # we go from 21446 rows to 18570 rows
+Unique_Merged_gsea<- na.omit(Unique_Merged_gsea)
+# keep distinct values
+Unique_Merged_gsea<- Unique_Merged_gsea %>% distinct() # still 18570 rows
+# Remove duplicate names 'POLR2J4', TNFRSF10A-DT
+Unique_Merged_gsea_final<-Unique_Merged_gsea[!(Unique_Merged_gsea$ID=="POLR2J4"),]
+Unique_Merged_gsea_final<-Unique_Merged_gsea[!(Unique_Merged_gsea$ID=="TNFRSF10A-DT"),]
+# check if it worked with nrow command # now 18568 rows
+# Set rownames to NULL
+rownames(Unique_Merged_gsea_final)<- NULL
+# Finally change rownames to gene ID's 
+Unique_Merged_gsea_final<-tibble::column_to_rownames(Unique_Merged_gsea_final, var = "ID")
+
+```
+```{r}
+# Now we have prepared the data accordingly we are able to call the GSEA functions!
+# Create matrix object
+GSEA_matrix<- as.matrix(Unique_Merged_gsea_final)
+# Run enrichment analysis
+# Create z-scores
+PathwayActivity_zscore <- progeny(GSEA_matrix, 
+    scale=TRUE, organism="Human", top = 100, perm = 1000, z_scores = TRUE) %>%
+    t()
+colnames(PathwayActivity_zscore) <- "NES"
+# PROGENy magic
+PathwayActivity_zscore_df <- as.data.frame(PathwayActivity_zscore) %>% 
+    tibble::rownames_to_column(var = "Pathway") %>%
+    dplyr::arrange(NES) %>%
+    dplyr::mutate(Pathway = factor(Pathway))
+
+library(ggplot2)
+
+ggplot(PathwayActivity_zscore_df,aes(x = reorder(Pathway, NES), y = NES)) + 
+    geom_bar(aes(fill = NES), stat = "identity") +
+    scale_fill_gradient2(low = "darkblue", high = "indianred", 
+        mid = "whitesmoke", midpoint = 0) + 
+    theme_minimal() +
+    theme(axis.title = element_text(face = "bold", size = 12),
+        axis.text.x = 
+            element_text(angle = 45, hjust = 1, size =10, face= "bold"),
+        axis.text.y = element_text(size =10, face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+    xlab("Pathways")
+
+```
+The p53, Hypoxia, Jak.stat and TNFa show most enrichment within the comparison of full dataset against 0. This is interesting as it states that these pathways might have an important function within the preliminary differentiation stages.
+
+### Genes responsible for pathway enrichment
+A variety of pathways seem to be enriched, it is of great interest to know which genes contribute to this enrichment. Keep in mind that I like to be complete so at this stage I will NOT be making a selection based upon pathways. This document will contain all pathways.
+```{r}
+# Use the unique_merged_gsea as dataframe
+df_unique_matrix<-data.frame(Unique_Merged_gsea)
+# we have a cleaned df_unique_matrix (a matrix containing gene names in column 1 and t-values in column 2)
+# We also need a progeny matrix
+prog_matirx<-getModel("Human", top=100) %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("GeneID")
+
+# load libraries
+library(progeny)
+library(tibble)
+library(tidyr)
+library(dplyr)
+library(pheatmap)
+library(readr)
+library(ggplot2)
+
+# Include all labels of enriched genes
+options(ggrepel.max.overlaps= Inf)
+
+# Run the functions!!
+# KEEP IN MIND THIS IS THE COMPARISON OF THE FULL DATASET AGAINST 0
+# Androgen
+scat_plots_Androgen <- progeny::progenyScatter(df = df_unique_matrix, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_Androgen[[1]]$'Androgen')
+# EGFR
+scat_plots_EGFR <- progeny::progenyScatter(df = df_unique_matrix, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_EGFR[[1]]$'EGFR')
+# Estrogen
+scat_plots_Estrogen <- progeny::progenyScatter(df = df_unique_matrix, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_Estrogen[[1]]$'Estrogen')
+# JAK.STAT
+scat_plots_JAKSTAT <- progeny::progenyScatter(df = df_unique_matrix, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_JAKSTAT[[1]]$'JAK-STAT')
+# MAPK
+scat_plots_MAPK <- progeny::progenyScatter(df = df_unique_matrix, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_MAPK[[1]]$'MAPK')
+# NFKb
+scat_plots_NFKb <- progeny::progenyScatter(df = df_unique_matrix, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_NFKb[[1]]$'NFkB')
+# p53
+scat_plots_p53 <- progeny::progenyScatter(df = df_unique_matrix, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_p53[[1]]$'p53')
+# PI3K
+scat_plots_PI3K <- progeny::progenyScatter(df = df_unique_matrix, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_PI3K[[1]]$'PI3K')
+#TGFb
+scat_plots_TGFb <- progeny::progenyScatter(df = df_unique_matrix, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_TGFb[[1]]$'TGFb')
+# TNFa
+scat_plots_TNFa <- progeny::progenyScatter(df = df_unique_matrix, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_TNFa[[1]]$'TNFa')
+# Trail
+scat_plots_Trail <- progeny::progenyScatter(df = df_unique_matrix, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_Trail[[1]]$'Trail')
+# VEGF
+scat_plots_VEGF <- progeny::progenyScatter(df = df_unique_matrix, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_VEGF[[1]]$'VEGF')
+# WNT
+scat_plots_WNT <- progeny::progenyScatter(df = df_unique_matrix, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_WNT[[1]]$'WNT')
+# Hypoxia
+scat_plots_Hypoxia <- progeny::progenyScatter(df = df_unique_matrix, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_Hypoxia[[1]]$Hypoxia)
+```
+
+The values have been sorted based upon p-value whereafter, the test-statistic was extracted from the dataset. This allows us to see which genes cause the particular enrichment. On the y-axis we see the respective t-values while the x-axis describes the PROGENy weights of each gene in relation to the pathway. The marginal distribution of the gene level stats is displayed on the right of the plot to give some visual support regarding the singificance of each gene that contributes tot the pathway score.
+
+The blue color indicates the positive contributions to the pathways, while the red color indicates the negative contributions. For each gene contribution, there's the possibility of 4 different scenario's (as indicated by the axis, dividing data into 4 quadrants).These scenario's comprise the combination of the significance of the gene level statistic and the significance of the gene level weight. A positive weight will lead to a positive(blue)/negative(red)gene contribution if the gene level stat is positive/negative. Negative weight will lead to a negative(red)/positive(blue) gene contribution if the gene level stat is positive/negative.
+
+#### P53 enrichment
+As P53 was the most significantly enriched pathway it might be of interest to take a closer look at the genes contributing to enrichment. 
+
+##### STX6
+The gene syntaxin 6 (STX6) is involved in the specific transfer of vesicles between organelles. This process is crucial in developing and maintaining hte organization of membrane compartments within cells. This gene positively contributes to pathway enrichment.
+
+(https://pubmed.ncbi.nlm.nih.gov/9243506/)
+(Expression in skin: https://www.ncbi.nlm.nih.gov/gene/10228#:~:text=The%20compartment%2Dspecific%20interaction%20of,conserved%20groove%20in%20Syntaxin%206.)
+
+##### LCE1B
+The gene Late Cornified Envelope 1B is a protein codeing gene and as the name already suggests involved in the formation of the cornified cell envelope. This structure is known to be part of the terminal differentiation. Terminal differentiation of keratinocytes culminates in the replacement of the plasma membrane with the cornified cell envelope (CE), which is a composite of a variety of cross-linked proteins. 
+
+##### LCE1C
+Late Cornified Envelope 1C (LCE1C) has a similar description as LCE1B.It might function as a complex together with 1B. 
+
+(https://www.sciencedirect.com/science/article/pii/S0022202X15322934)
+
+
+##### SRGAP3
+The gene SLIT-ROBO Rho GTPase Activating protein 3 (SRGAP3) is known to regulate the neuronal cytoskeletal reorganization. It does so by directly inhibbiting the Rho GTPase Rac1. Subsequently this leads to inhibition of an interaction with the actin remodeling proteins. Nevertheless, SRGAP3 expression has been observed before in skin cancer. As this gene negatively contributes to pathway enrichment, there might be hypothesized that the gene is underexpressed in order to ensure a healthy differentiation process. 
+
+(https://pubmed.ncbi.nlm.nih.gov/23127797/)
+(https://www.nature.com/articles/onc2012489.pdf?origin=ppub)
+
+### Heatmaps enriched genes
+The genes that contribute to pathway enrichment are of importance in the dynamics leading to keratinocyte differentiation. Therefore, a scaled profile will be made which indicates the enrichment over time.
+```{r}
+# Create a new data set that only contains the mean expression per time point
+# Take the full normalized count data (gene_expr) # this is vst data # use this data to make heatmaps as well in the subset rmd file
+Mean_expression<-as.data.frame(gene_expr)
+# Mean day 0
+Mean_expression$Day_0<-rowMeans(Mean_expression[,c('d00_b1', 'd00_b2')], na.rm=TRUE)
+# Mean day 0.5
+Mean_expression$Day_0.5<-rowMeans(Mean_expression[,c('d05_b1', 'd05_b2')], na.rm=TRUE)
+# Mean day 1
+Mean_expression$Day_1<-rowMeans(Mean_expression[,c('d10_b1', 'd10_b2')], na.rm=TRUE)
+# Mean day 1.5
+Mean_expression$Day_1.5<-rowMeans(Mean_expression[,c('d15_b1', 'd15_b2')], na.rm=TRUE)
+# Mean day 2
+Mean_expression$Day_2<-rowMeans(Mean_expression[,c('d20_b1', 'd20_b2')], na.rm=TRUE)
+# Mean day 2.5
+Mean_expression$Day_2.5<-rowMeans(Mean_expression[,c('d25_b1', 'd25_b2')], na.rm=TRUE)
+# Mean day 3
+Mean_expression$Day_3<-rowMeans(Mean_expression[,c('d30_b1', 'd30_b2')], na.rm=TRUE)
+# Mean day 4.5
+Mean_expression$Day_4.5<-rowMeans(Mean_expression[,c('d45_b1', 'd45_b2')], na.rm=TRUE)
+# Mean day 5
+Mean_expression$Day_5<-rowMeans(Mean_expression[,c('d50_b1', 'd50_b2')], na.rm=TRUE)
+# Mean day 6
+Mean_expression$Day_6<-rowMeans(Mean_expression[,c('d60_b1', 'd60_b2')], na.rm=TRUE)
+
+# Remove old columns
+Mean_expression = select(Mean_expression, -1:-20)
+
+# Export mean_Expression to import in subset analysis rmd file
+Mean_expression_name_column<-rownames_to_column(Mean_expression, var="ID") # change rownmes to column excel does not read rownames so you will lose them if you keep the dataframe like the original
+library("writexl")
+write_xlsx(Mean_expression_name_column,"VST_Mean_Expression_Data")
+
+```
+
+```{r, fig.height=20}
+# libraries
+library(tidyverse)
+# Androgen
+# Dataset only containing enriched genes: "SYTL2","HOXC13","FRK","ABCC4","ECI2","PMC2","MPHOSPH9","AZGP1","MAF","CSGALNACT1","DHCR24", "FUT8"
+enriched_genes_androgen<- Mean_expression[rownames(Mean_expression) %in% c("SYTL2","HOXC13","FRK","ABCC4","ECI2","PMC2","MPHOSPH9","AZGP1","MAF","CSGALNACT1","DHCR24", "FUT8"),]
+# heatmap
+pheatmap(enriched_genes_androgen,fontsize=14, show_rownames = TRUE,color=myColor,cluster_cols = FALSE, main = "Genes contributing to Androgen enrichment", angle_col = 45, treeheight_col = 0, border_color = NA)
+
+# EGFR
+#"ETFDH", "PCMTD2","N4BP2L2","RABGAP1","TMEM59","ATXN3","FOXN3","XRCC3","ODC1","PLEK2","EGR3"
+enriched_genes_egfr<- Mean_expression[rownames(Mean_expression) %in% c("ETFDH", "PCMTD2", "N4BP2L2","RABGAP1","TMEM59","ATXN3","FOXN3","XRCC3","ODC1","PLEK2","EGR3"),]
+# heatmap
+p1<-pheatmap(enriched_genes_egfr,fontsize=14, show_rownames = TRUE,color=myColor, cluster_cols = FALSE, main = "Genes contributing to EGFR enrichment", angle_col = 45, treeheight_col = 0, border_color = NA)
+
+# Estrogen
+# "GATA3","MYH14","RAB9A","KIAA0513", "RAB27B", "ELF5","ERBB3","FRK","MED13L","TIAM1","SIAH2","EGR3","RAPGELF1","CELS", "ESR1"
+enriched_genes_estrogen<- Mean_expression[rownames(Mean_expression) %in% c("GATA3","MYH14","RAB9A","KIAA0513", "RAB27B", "ELF5","ERBB3","FRK","MED13L","TIAM1","SIAH2","EGR3","RAPGELF1","CELS", "ESR1"),]
+# heatmap
+pheatmap(enriched_genes_estrogen,fontsize=14, show_rownames = TRUE,color=myColor,cluster_cols = FALSE, main = "Genes contributing to Estrogen enrichment", angle_col = 45, treeheight_col = 0, border_color = NA)
+
+#JAKSTAT
+# "STAT2", "PML","NMI","TAP1", "APOL6", "CXCL11","APOBEC3G","PSMB9","APOL2","PSMB8"
+enriched_genes_JAKSTAT<- Mean_expression[rownames(Mean_expression) %in% c("STAT2", "PML","NMI","TAP1", "APOL6", "CXCL11","APOBEC3G","PSMB9","APOL2","PSMB8"),]
+# heatmap
+p2<-pheatmap(enriched_genes_JAKSTAT,fontsize=14, show_rownames = TRUE,color=myColor,cluster_cols = FALSE, main = "Genes contributing to JAK-STAT enrichment", angle_col = 45, treeheight_col = 0, border_color = NA)
+
+# MAPK
+# "PIK3C2B","TMEM59","XRCC3","HMGA2","POLR3G","SLCO4A1","SH3B","MGST3","NNT"
+enriched_genes_MAPK<- Mean_expression[rownames(Mean_expression) %in% c("PIK3C2B","TMEM59","XRCC3","HMGA2","POLR3G","SLCO4A1","SH3B","MGST3","NNT"),]
+# heatmap
+p3<-pheatmap(enriched_genes_MAPK,fontsize=14, show_rownames = TRUE,color=myColor,cluster_cols = FALSE, main = "Genes contributing to MAPK enrichment", angle_col = 45, treeheight_col = 0, border_color = NA)
+
+
+# NFkB
+# "ELOVL7","SGPP2","TMEM217","MAP3K8","HIVEP1","NFKBIE","SLC2A6","CXCL11","IFNAR2","CD83","TNF","CXCL5","IRF1","CXCL3","IL23A","IL32"
+enriched_genes_NFkB<- Mean_expression[rownames(Mean_expression) %in% c("ELOVL7","SGPP2","TMEM217","MAP3K8","HIVEP1","NFKBIE","SLC2A6","CXCL11","IFNAR2","CD83","TNF","CXCL5","IRF1","CXCL3","IL23A","IL32"),]
+# heatmap
+p4<-pheatmap(enriched_genes_NFkB,fontsize=14, show_rownames = TRUE,color=myColor,cluster_cols = FALSE, main = "Genes contributing to NFkB enrichment", angle_col = 45, treeheight_col = 0, border_color = NA)
+
+# P53
+# "CYSRT1","CSTA","LCE1B","PPM1D","ABCA12","LCE1C","SLC44A5","INPP1","STX6","TP53INP1","NECTIN4","CYFIP2","SRGAP3"
+enriched_genes_p53<- Mean_expression[rownames(Mean_expression) %in% c("CYSRT1","CSTA","LCE1B","PPM1D","ABCA12","LCE1C","SLC44A5","INPP1","STX6","TP53INP1","NECTIN4","CYFIP2","SRGAP3"),]
+# heatmap
+pheatmap(enriched_genes_p53,fontsize=14, show_rownames = TRUE,color=myColor,cluster_cols = FALSE, main = "Genes contributing to P53 enrichment", angle_col = 45, treeheight_col = 0, border_color = NA)
+
+
+# PI3K
+# "CREBRF","HSBP1L1","TBC1D15","MCAM","AEBP1","RGS10"
+enriched_genes_PI3K<- Mean_expression[rownames(Mean_expression) %in% c("CREBRF","HSBP1L1","TBC1D15","MCAM","AEBP1","RGS10"),]
+# heatmap
+p5<-pheatmap(enriched_genes_PI3K,fontsize=14, show_rownames = TRUE,color=myColor,cluster_cols = FALSE, main = "Genes contributing to PI3K enrichment", angle_col = 45, treeheight_col = 0, border_color = NA)
+
+
+# TGFb
+# "ID4","CDKN2B","CRLF1","OLFM2","TUFT1","PODNL1","PAWR","COL1A1","CLDN11","GALNT10","COL4A2","LTBP2","TPM1"
+enriched_genes_TGFb<- Mean_expression[rownames(Mean_expression) %in% c( "ID4","CDKN2B","CRLF1","OLFM2","TUFT1","PODNL1","PAWR","COL1A1","CLDN11","GALNT10","COL4A2","LTBP2","TPM1"),]
+# heatmap
+p6<-pheatmap(enriched_genes_TGFb,fontsize=14, show_rownames = TRUE,color=myColor,cluster_cols = FALSE, main = "Genes contributing to TGFb enrichment", angle_col = 45, treeheight_col = 0, border_color = NA)
+
+# TNFa
+# "CLDN1","TMEM217","NFKBIE","SLC2A6","CTSS","IFNAR2","CD83","IL32","C1QTNF1","CXCL5","IRF1","CXCL3","TRIM47","PLAU"
+enriched_genes_TNFa<- Mean_expression[rownames(Mean_expression) %in% c( "CLDN1","TMEM217","NFKBIE","SLC2A6","CTSS","IFNAR2","CD83","IL32","C1QTNF1","CXCL5","IRF1","CXCL3","TRIM47","PLAU"),]
+# heatmap
+p7<-pheatmap(enriched_genes_TNFa,fontsize=14, show_rownames = TRUE,color=myColor,cluster_cols = FALSE, main = "Genes contributing to TNFa enrichment", angle_col = 45, treeheight_col = 0, border_color = NA)
+
+# Trail
+# "FRMPD1","FLCN"
+enriched_genes_Trail<- Mean_expression[rownames(Mean_expression) %in% c( "FRMPD1","FLCN"),]
+# heatmap
+pheatmap(enriched_genes_Trail,fontsize=14, show_rownames = TRUE,color=myColor,cluster_cols = FALSE, main = "Genes contributing to Trail enrichment", angle_col = 45, treeheight_col = 0, border_color = NA)
+
+# VEGF
+# "VWA8","CPA6","MIR503HG","CAMK4","HDAC4"
+enriched_genes_VEGF<- Mean_expression[rownames(Mean_expression) %in% c( "VWA8","CPA6","MIR503HG","CAMK4","HDAC4"),]
+# heatmap
+pheatmap(enriched_genes_VEGF,fontsize=14, show_rownames = TRUE,color=myColor,cluster_cols = FALSE, main = "Genes contributing to VEGF enrichment", angle_col = 45, treeheight_col = 0, border_color = NA)
+
+# WNT
+# "DLX5","CAMPK1D","KRT23","SNTB1","NTF3","FOXJ2","MSX2","ANKRD1","PLA2R1","GNG11","ZNF43"
+enriched_genes_WNT<- Mean_expression[rownames(Mean_expression) %in% c( "DLX5","CAMPK1D","KRT23","SNTB1","NTF3","FOXJ2","MSX2","ANKRD1","PLA2R1","GNG11","ZNF43"),]
+# heatmap
+pheatmap(enriched_genes_WNT,fontsize=14, show_rownames = TRUE,color=myColor, cluster_cols = FALSE, main = "Genes contributing to WNT enrichment", angle_col = 45, treeheight_col = 0, border_color = NA)
+
+# Hypoxia
+# "RORA","TMEM45A","EFNA3","FAM162A","EGLN3","KDM4B","KDM3A","BNIP3L","FBXO42","C4orf3","GYS1","YEATS2","WDR54"
+enriched_genes_Hypoxia<- Mean_expression[rownames(Mean_expression) %in% c( "RORA","TMEM45A","EFNA3","FAM162A","EGLN3","KDM4B","KDM3A","BNIP3L","FBXO42","C4orf3","GYS1","YEATS2","WDR54"),]
+# heatmap
+pheatmap(enriched_genes_Hypoxia,fontsize=14, show_rownames = TRUE,color=myColor, cluster_cols = FALSE, main = "Genes contributing to Hypoxia enrichment", angle_col = 45, treeheight_col = 0, border_color = NA)
+
+# plotting our pathways of interest in one figure
+paletteLength <- 100
+Colors <- colorRampPalette(c("darkblue", "whitesmoke","indianred"))(paletteLength)
+library(ggplotify)
+p1<-as.ggplot(pheatmap(enriched_genes_egfr,fontsize=14, show_rownames = TRUE, cluster_cols = FALSE, main = "Genes contributing to EGFR enrichment", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row", color = Colors)) 
+p2<-as.ggplot(pheatmap(enriched_genes_JAKSTAT,fontsize=14, show_rownames = TRUE,color=Colors,cluster_cols = FALSE, main = "Genes contributing to JAK-STAT enrichment", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row"))
+p3<-as.ggplot(pheatmap(enriched_genes_MAPK,fontsize=14, show_rownames = TRUE,color=Colors,cluster_cols = FALSE, main = "Genes contributing to MAPK enrichment", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row"))
+p4<-as.ggplot(pheatmap(enriched_genes_NFkB,fontsize=14, show_rownames = TRUE,color=Colors,cluster_cols = FALSE, main = "Genes contributing to NFkB enrichment", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row"))
+p5<-as.ggplot(pheatmap(enriched_genes_PI3K,fontsize=14, show_rownames = TRUE,color=Colors,cluster_cols = FALSE, main = "Genes contributing to PI3K enrichment", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row"))
+p6<-as.ggplot(pheatmap(enriched_genes_TGFb,fontsize=14, show_rownames = TRUE,color=Colors,cluster_cols = FALSE, main = "Genes contributing to TGFb enrichment", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row"))
+p7<-as.ggplot(pheatmap(enriched_genes_TNFa,fontsize=14, show_rownames = TRUE,color=Colors,cluster_cols = FALSE, main = "Genes contributing to TNFa enrichment", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row"))
+
+library(patchwork)
+
+p2 + p1 / p3 + p4 / p5 + p6 / p7
+
+```
+
+
+
+
+
+
+
+
+
+
+
+

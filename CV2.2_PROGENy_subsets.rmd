@@ -1,0 +1,3177 @@
+---
+title: 'CV2.2: PROGENy - subsets'
+author: "C.deVriend"
+date: "7-4-2022"
+output: html_document
+toc: true
+toc_float: true
+number_sections: true
+theme: readable
+code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{css, echo=FALSE}
+pre {
+  max-height: 300px;
+  overflow-y: auto;
+}
+pre[class] {
+  max-height: 100px;
+}
+```
+
+# PROGENy - Pathway activity in each subset
+It is of importance to understand the pathway specific differences per timepoint. Therefore, a PROGENy based analysis will be performed onto the data subsets. These subsets contain differential expression data for a variety of timepoints.
+
+* subsets*
+
+Comparison day 0 and day 0.5
+
+Comparison day 0.5 and day 1
+
+Comparison day 1 and day 1.5
+
+Comparison day 1.5 and day 2
+
+Comparison day 2 and day 2.5
+
+Comparison day 2.5 and day 3
+
+Comparison day 3 and day 4.5
+
+Comparison day 4.5 and day 5
+
+Comparison day 5 and day 6
+
+Comparison day 6 and day 0
+
+```{r}
+library(here)
+here()
+
+# load data
+res0_0.5_p0.05 <- read.csv("data/Deseq output subsets/res0_0.5_p0.05.csv", row.names=1)
+
+res0.5_1_p0.05 <- read.csv("data/Deseq output subsets/res0.5_1_p0.05.csv", row.names=1)
+
+res1_1.5_p0.05 <- read.csv("data/Deseq output subsets/res1_1.5_p0.05.csv", row.names=1)
+
+res1.5_2_p0.05 <- read.csv("data/Deseq output subsets/res1.5_2_p0.05.csv", row.names=1)
+ 
+res2_2.5_p0.05 <- read.csv("data/Deseq output subsets/res2_2.5_p0.05.csv", row.names=1)
+ 
+res2.5_3_p0.05 <- read.csv("data/Deseq output subsets/res2.5_3_p0.05.csv", row.names=1)
+ 
+res3_4.5_p0.05 <- read.csv("data/Deseq output subsets/res3_4.5_p0.05.csv", row.names=1)
+ 
+res4.5_5_p0.05 <- read.csv("data/Deseq output subsets/res4.5_5_p0.05.csv", row.names=1)
+ 
+res5_6_p0.05 <- read.csv("data/Deseq output subsets/res5_6_p0.05.csv", row.names=1)
+ 
+res6_0_p0.05 <- read.csv("data/Deseq output subsets/res6_0_p0.05.csv", row.names=1)
+```
+```{r}
+# load library to read excel files
+library(readxl)
+# load tidyverse library
+library(tidyverse)
+# Load vst_mean_Expression data in order to generate heatmaps from the normalized counts
+VST_Mean_Expression_Data<- read_excel("data/VST_Mean_Expression_Data.csv")
+# change column to rownames
+VST_Mean_Expression_Data<- column_to_rownames(VST_Mean_Expression_Data, var = "ID")
+```
+
+```{r}
+library(biomaRt)
+library(RColorBrewer)
+```
+
+## Pathway enrichment
+It is of interest to determine if there are certain gene sets/pathways that show enrichment during the variety of timepoints. Therefore, a PROGENy based GSEA has been performed. The outcome will be the normalized enrichment score (NES) per pathway.
+
+### Differential expression set Day 0 - Day 0.5
+#### Gene set enrichment analysis
+
+```{r}
+# Use the datasubsets from the rmd file "Subset_20220224"
+# For this analysis I will use the sets that orders based upon p-value
+Differentialexpressiondata_0_0.5<-data.frame(res0_0.5_p0.05)
+# order data based upon padj
+Differentialexpressiondata_0_0.5<-Differentialexpressiondata_0_0.5[order(Differentialexpressiondata_0_0.5$padj),]
+# check how many values are actually significant
+sum(Differentialexpressiondata_0_0.5$padj<0.05, na.rm = TRUE) # 381 genes
+# create new set that only contains the test statistic and the rownames
+Top_Differentialexpressiondata_0_0.5<-data.frame(Differentialexpressiondata_0_0.5$stat)
+Top_Differentialexpressiondata_0_0.5$ID<-rownames(Differentialexpressiondata_0_0.5)
+# Change ID's to Gene symbols
+martgsea<-useDataset("hsapiens_gene_ensembl", useMart("ensembl")) # you only need to download this database once!
+genesgsea_0_0.5<-Top_Differentialexpressiondata_0_0.5$ID
+Gene_gsea_list_0_0.5 <- getBM(filters = "ensembl_gene_id", attributes = c("ensembl_gene_id", "hgnc_symbol"), values = genesgsea_0_0.5, mart = martgsea)
+Top_Differentialexpressiondata_0_0.5<-merge(Top_Differentialexpressiondata_0_0.5, Gene_gsea_list_0_0.5 , by.x="ID", by.y="ensembl_gene_id")
+# Change column names; this is easier for the next piece of code 
+names(Top_Differentialexpressiondata_0_0.5)[1]<-"Ensembl_ID"
+names(Top_Differentialexpressiondata_0_0.5)[2]<-"t"
+names(Top_Differentialexpressiondata_0_0.5)[3]<-"ID"
+# Change empty spaces to NA
+# Replace empty cells with NA
+Top_Differentialexpressiondata_0_0.5[Top_Differentialexpressiondata_0_0.5 == ""] <- NA
+# Remove NA's # 18556 genes
+Top_Differentialexpressiondata_0_0.5<-na.omit(Top_Differentialexpressiondata_0_0.5)
+# install library
+library(tidyverse)
+# set rownames to NULL
+rownames(Top_Differentialexpressiondata_0_0.5)<- NULL
+# Remove duplicate names 'POLR2J4'
+Top_Differentialexpressiondata_0_0.5<-Top_Differentialexpressiondata_0_0.5[!(Top_Differentialexpressiondata_0_0.5$ID=="POLR2J4"),]
+# Only keep unique values
+Top_Differentialexpressiondata_0_0.5<-Top_Differentialexpressiondata_0_0.5 %>% distinct()
+# Change rownames # in total now 16588 rows/genes
+Top_Differentialexpressiondata_0_0.5<-column_to_rownames(Top_Differentialexpressiondata_0_0.5, var = "ID")
+# Remove ensembl ID's
+library(dplyr)
+Top_Differentialexpressiondata_0_0.5<-as.data.frame(Top_Differentialexpressiondata_0_0.5)
+Top_Differentialexpressiondata_0_0.5<-Top_Differentialexpressiondata_0_0.5[-c(1)]
+```
+
+
+```{r}
+# load progeny library
+library(progeny)
+
+
+# Perform GSEA
+# Create matrix object
+GSEA_matrix_0_0.5<-as.matrix(Top_Differentialexpressiondata_0_0.5)
+
+# Create z-scores
+PathwayActivity_zscore_0_0.5 <- progeny(GSEA_matrix_0_0.5, 
+    scale=TRUE, organism="Human", top = 100, perm = 1000, z_scores = TRUE) %>%
+    t()
+colnames(PathwayActivity_zscore_0_0.5) <- "NES"
+# PROGENy magic
+PathwayActivity_zscore_0_0.5_df <- as.data.frame(PathwayActivity_zscore_0_0.5) %>% 
+    rownames_to_column(var = "Pathway") %>%
+    dplyr::arrange(NES) %>%
+    dplyr::mutate(Pathway = factor(Pathway))
+
+ggplot(PathwayActivity_zscore_0_0.5_df,aes(x = reorder(Pathway, NES), y = NES)) + 
+    geom_bar(aes(fill = NES), stat = "identity") +
+    scale_fill_gradient2(low = "darkblue", high = "indianred", 
+        mid = "whitesmoke", midpoint = 0) + 
+    theme_minimal() +
+    theme(axis.title = element_text(face = "bold", size = 12),
+        axis.text.x = 
+            element_text(angle = 45, hjust = 1, size =10, face= "bold"),
+        axis.text.y = element_text(size =10, face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+    xlab("Pathways")
+```
+
+Based upon these results it becomes apparant that the TNFa, JAK.STAT and NFkB pathways are enriched in the early differentiation timepoints 0-0.5. In order to gain additional insight into which genes contribute to this enrichment
+
+#### Genes responsible for pathway enrichment
+```{r}
+# Use same data as for GSEA time but set rownames to column
+Gene_enrichment_0_0.5<-rownames_to_column(Top_Differentialexpressiondata_0_0.5, var = "ID")
+Gene_enrichment_0_0.5<-data.frame(Gene_enrichment_0_0.5)
+# Create PROGENy weights matrix
+prog_matirx<-getModel("Human", top=100) %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("GeneID")
+
+```
+##### TNFa
+```{r}
+# Make sure all labels show
+options(ggrepel.max.overlaps = Inf)
+
+scat_plots_TNFa_0_0.5 <- progeny::progenyScatter(df = Gene_enrichment_0_0.5, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_TNFa_0_0.5[[1]]$'TNFa')
+```
+```{r}
+# libraries
+library(tidyverse)
+library(pheatmap)
+# TNFa
+# Dataset only containing enriched genes: 
+enriched_genes_TNFa_0_0.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("RHCG","MMP10","IL36G","IL1RN","TNFAIP2","SOD2","KRT6B","TLR2","IGFL1","MMP9","PLAU","CLDN1","IFNGR2","CXCL8","CXCL5","NFKBIA","BIRC3","BCL2A1","B4GALT1","RHBDL2","CFB","CXCL6","IRF1","TNIP1","SDC4","EFNA1","SERPINA3","TLR2","NINJ1"),]
+# Create colors that show increase of expression)
+myColor<-colorRampPalette(c("darkblue", "whitesmoke", "indianred"))(100)
+# heatmap
+pheatmap(enriched_genes_TNFa_0_0.5,fontsize=14, fontsize_row = 8, color = myColor, show_rownames = TRUE,cluster_cols = FALSE, main = "Genes contributing to TNFa enrichment comparison Day 0~0.5", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+
+
+```
+
+Genes contributing to TNFa enrichement (red): 
+1. RHCG
+2. MMP10
+3. IL36G
+4. IL1RN
+5. TNFAIP2
+6. SOD2
+7. KRT6B
+8. TLR2
+9. IGFL1
+10. MMP9
+11. PLAU
+12. CLDN1
+13. IFNGR2
+14. CXCL8
+15. CXCL5
+16. NFKBIA
+17. BIRC3
+18. BCL2A1
+19. B4GALT1
+20. RHBDL2
+21. CFB
+22. CXCL6
+23. IRF1
+24. TNIP1
+25. SDC4
+26. EFNA1
+27. SERPINA3
+28. TLR2
+
+Genes contributing to TNFa enrichment (blue):
+1. NINJ1
+
+##### Jak.stat 
+```{r}
+scat_plots_JAK.STAT_0_0.5 <- scat_plots_JAKSTAT <- progeny::progenyScatter(df = Gene_enrichment_0_0.5 , weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_JAK.STAT_0_0.5[[1]]$`JAK-STAT`)
+  
+```
+```{r}
+# JAK-STAT
+# Dataset only containing enriched genes: 
+enriched_genes_JAKSTAT_0_0.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("SAMD9","RSAD2","PARP14","IFIH1","IFI44","CMPK2","TDRD7","PARP9","USP18","OAS1","IFIT3","IFIT1","MYD88","APOL6","MX2","CXCL11","PHF11","HELZ2","NMI","OASL","IFI44L","SECTM1","SAMD9L","DDX58","DDX60L", "SLC25A28","IFI35"),]
+# heatmap
+pheatmap(enriched_genes_JAKSTAT_0_0.5,fontsize=14,fontsize_row = 8, color = myColor, show_rownames = TRUE,cluster_cols = FALSE, main = "Genes contributing to JAK-STAT enrichment comparison Day 0~0.5", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+
+```
+
+Genes contributing to JAK.STAT enrichement (red): 
+1. SAMD9
+2. RSAD2
+3. PARP14
+4. IFIH1
+5. IFI44
+6. CMPK2
+7. TDRD7
+8. PARP9
+9. USP18
+10. OAS1
+11. IFIT3
+12. IFIT1
+13. MYD88
+14. APOL6
+15. MX2
+16. CXCL11
+17. PHF11
+18. HELZ2
+19. NMI
+20. OASL
+21. IFI44L
+22. SECTM1
+23. SAMD9L
+24. DDX58
+25. DDX60L
+
+Genes contributing to JAK.STAT enrichment (blue):
+1. SLC25A28
+2. IFI35
+
+##### NFkB
+```{r}
+scat_plots_NFkB_0_0.5 <- progeny::progenyScatter(df = Gene_enrichment_0_0.5 , weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_JAK.STAT_0_0.5[[1]]$`NFkB`)
+  
+```
+```{r}
+# NFkB
+library(pheatmap)
+# Dataset only containing enriched genes: 
+enriched_genes_NFKB_0_0.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("IL1RN","IL36G","TNFAIP2","TNFAIP8","CXCL5","SOD2","BIRC3","IRAK2","IFIH1","MAP3K8","NFKBIA","NFKBIZ","B4GALT1","SDC4","BCL2A1","CXCL3","PRDM1","CXCL6","CXCL11","IL1B","IL23A","CFB","EFNA1","GCH1", "TNIP1","RNF19B","IRF1","TLR2","KYNU","SGPP2","NINJ1"),]
+# heatmap
+pheatmap(enriched_genes_NFKB_0_0.5, fontsize=14, fontsize_row = 10, color = myColor, show_rownames = TRUE, cluster_cols = FALSE, main = "Genes contributing to NFkB enrichment comparison Day 0~0.5", border_color = NA, scale = "row")
+```
+
+Genes negatively contributing to NFkB enrichement (red): 
+1. IL1RN
+2. IL36G
+3. TNFAIP2
+4. TNFAIP8
+5. CXCL5
+6. SOD2
+7. BIRC3
+8. IRAK2
+9. IFIH1
+10. MAP3K8
+11. NFKBIA
+12. NFKBIZ
+13. B4GALT1
+14. SDC4
+15. BCL2A1
+16. CXCL3
+17. PRDM1
+18. CXCL6
+19. CXCL11
+20. IL1B
+21. IL23A
+22. CFB
+23. EFNA1
+24. GCH1
+25. TNIP1
+26. RNF19B
+27. IRF1
+28. TLR2
+29. KYNU
+30. SGPP2
+
+Genes positively contributing to NFkB enrichment (blue):
+1. NINJ1
+
+For visualisation purposes it might be of interest to combine the three heatmaps from the three enriched pathways into one figure:
+```{r}
+Full_enriched_gene_set_0_0.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("RHCG","MMP10","IL36G","IL1RN","TNFAIP2","SOD2","KRT6B","TLR2","IGFL1","MMP9","PLAU","CLDN1","IFNGR2","CXCL8","CXCL5","NFKBIA","BIRC3","BCL2A1","B4GALT1","RHBDL2","CFB","CXCL6","IRF1","TNIP1","SDC4","EFNA1","SERPINA3","TLR2","NINJ1","SAMD9","RSAD2","PARP14","IFIH1","IFI44","CMPK2","TDRD7","PARP9","USP18","OAS1","IFIT3","IFIT1","MYD88","APOL6","MX2","CXCL11","PHF11","HELZ2","NMI","OASL","IFI44L","SECTM1","SAMD9L","DDX58","DDX60L", "SLC25A28","IFI35","IL1RN","IL36G","TNFAIP2","TNFAIP8","CXCL5","SOD2","BIRC3","IRAK2","IFIH1","MAP3K8","NFKBIA","NFKBIZ","B4GALT1","SDC4","BCL2A1","CXCL3","PRDM1","CXCL6","CXCL11","IL1B","IL23A","CFB","EFNA1","GCH1", "TNIP1","RNF19B","IRF1","TLR2","KYNU","SGPP2","NINJ1"),]
+# Only colums 1 and 2 are interesing here because we're looking at the differential expression between those!
+# Therefore remove other columns
+Full_enriched_gene_set_0_0.5<-Full_enriched_gene_set_0_0.5[-c(3:10)]
+# Transpose set so the gene names will go on the x-axis
+#Full_enriched_gene_set_0_0.5<- t(Full_enriched_gene_set_0_0.5)
+# Load library; so we can give colors to the branches to indicate the different pathways
+library(dendextend)
+# heatmap
+pheatmap(Full_enriched_gene_set_0_0.5,fontsize=10,fontsize_row =4 , color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched genes comparison Day 0~0.5", angle_col = 45, treeheight_col = 10,border_color = NA, cutree_rows = 3, k_row=3)
+```
+
+
+```{r}
+# color labels of a dendogram by an additional factor
+# load library
+library(dendextend)
+# make dendogram
+dend<-as.dendrogram(hclust(dist(Full_enriched_gene_set_0_0.5)))
+# by default, the dendogram has no colors to the labels
+labels_colors(dend)
+# add colors
+labels_colors(dend)<-1:3
+# make sure each cluster has a color
+labels_colors(dend)
+# plot data # gives dendogram with color one after another does not label according to cluster!
+plot(dend, main = "color for every cluster")
+
+```
+```{r}
+# Define dendogram object
+hc<-hclust(dist(Full_enriched_gene_set_0_0.5[1:67,]), "ave")
+dendo<-as.dendrogram(hc)
+
+par(mfrow=c(1,2),mar=c(5,2,1,0))
+dend <- dend %>%
+          color_branches(k = 3) %>%
+          set("branches_lwd", c(2,1,2)) %>%
+          set("branches_lty", c(1,2,1))
+#plot(dend)
+dend<-color_labels(dend, k=3)
+plot(dend)
+
+```
+```{r}
+# install 3D heatmap package
+#if (!require("devtools")) install.packages("devtools")
+#devtools::install_github("rstudio/d3heatmap")
+```
+```{r}
+# First attempts
+# d3heatmap(Full_enriched_gene_set_0_0.5,fontsize=14, color = myColor, show_rownames = TRUE,cluster_cols = FALSE, main = "Enriched genes Day 0~0.5", angle_col = 45, treeheight_col = 0, border_color = NA, k_row = 3, k_col = 2)
+
+# Load library
+library(d3heatmap)
+
+# heatmap that includes color count legend 
+hmLegend(d3heatmap(Full_enriched_gene_set_0_0.5,dendrogram = c("row"), col =  myColor, show_rownames = TRUE,cluster_cols = FALSE,show_col_dend=FALSE, main = "Enriched genes Day 0~0.5",  angle_col = 90, treeheight_col = 0, cexCol = 1, border_color = NA, k_row = 3, k_col = 2), show = TRUE, title = "VST counts")
+# I coded the dendogram to have 3 clusters as we know we combined three pathways. How to check?
+# Save object as a webpage; might be nice to include in article
+Widget1<-hmLegend(d3heatmap(Full_enriched_gene_set_0_0.5,dendrogram = c("row"), col =  myColor, show_rownames = TRUE,cluster_cols = FALSE,show_col_dend=FALSE, main = "Enriched genes Day 0~0.5",  angle_col = 90, treeheight_col = 0, cexCol = 1, border_color = NA, k_row = 3, k_col = 2), show = TRUE, title = "VST counts")
+
+# same heatmap for all timepoints
+Full_enriched_gene_set_0_0.5_alltimepoints<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("RHCG","MMP10","IL36G","IL1RN","TNFAIP2","SOD2","KRT6B","TLR2","IGFL1","MMP9","PLAU","CLDN1","IFNGR2","CXCL8","CXCL5","NFKBIA","BIRC3","BCL2A1","B4GALT1","RHBDL2","CFB","CXCL6","IRF1","TNIP1","SDC4","EFNA1","SERPINA3","TLR2","NINJ1","SAMD9","RSAD2","PARP14","IFIH1","IFI44","CMPK2","TDRD7","PARP9","USP18","OAS1","IFIT3","IFIT1","MYD88","APOL6","MX2","CXCL11","PHF11","HELZ2","NMI","OASL","IFI44L","SECTM1","SAMD9L","DDX58","DDX60L", "SLC25A28","IFI35","IL1RN","IL36G","TNFAIP2","TNFAIP8","CXCL5","SOD2","BIRC3","IRAK2","IFIH1","MAP3K8","NFKBIA","NFKBIZ","B4GALT1","SDC4","BCL2A1","CXCL3","PRDM1","CXCL6","CXCL11","IL1B","IL23A","CFB","EFNA1","GCH1", "TNIP1","RNF19B","IRF1","TLR2","KYNU","SGPP2","NINJ1"),]
+
+
+# heatmap containing all timepoints 
+hmLegend(d3heatmap(Full_enriched_gene_set_0_0.5_alltimepoints, dendrogram = "row", col =  "Reds", show_rownames = TRUE,cluster_cols = FALSE, cluster_rows=FALSE, show_col_dend=FALSE, show_row_dend= FALSE,main = "Enriched genes Day 0~0.5",  angle_col = 90, treeheight_col = 0, cexCol = 1, cexRow = 0.5, border_color = NA, k_row = 3, k_col = 2), show = TRUE, title = "VST counts")
+#hmSideColors(d3heatmap = map, axis="row")
+```
+```{r, warning=FALSE}
+# include df that contains pathway information column
+  # jakstat
+enriched_genes_JAKSTAT_0_0.5['pathway']<-NA
+enriched_genes_JAKSTAT_0_0.5$pathway <- ifelse(is.na(enriched_genes_JAKSTAT_0_0.5$pathway), 'JAKSTAT', enriched_genes_JAKSTAT_0_0.5$pathway)
+  # nfkb
+enriched_genes_NFKB_0_0.5['pathway']<-NA
+enriched_genes_NFKB_0_0.5$pathway <- ifelse(is.na(enriched_genes_NFKB_0_0.5$pathway), 'NFkB', enriched_genes_NFKB_0_0.5$pathway)
+  # TNFa
+enriched_genes_TNFa_0_0.5['pathway']<-NA
+enriched_genes_TNFa_0_0.5$pathway <- ifelse(is.na(enriched_genes_TNFa_0_0.5$pathway), 'TNFa', enriched_genes_TNFa_0_0.5$pathway)
+
+# bind dataframes containing pathway info
+Full_enriched_gene_set_0_0.5_alltimep<- dplyr::bind_rows(enriched_genes_JAKSTAT_0_0.5, enriched_genes_NFKB_0_0.5, enriched_genes_TNFa_0_0.5)
+
+# Create pathway info
+Pathway_info<-Full_enriched_gene_set_0_0.5_alltimep
+Pathway_info<-Pathway_info[-c(1:10)]
+
+# now remove last column of "Full_enriched_gene_set_0_0.5_alltimep" as we need a numeric matrix
+Full_enriched_gene_set_0_0.5_alltimep<-Full_enriched_gene_set_0_0.5_alltimep[-c(11)]
+
+# Splitting function is not working for me at all
+# Use 'simple' annotation function
+pheatmap(Full_enriched_gene_set_0_0.5_alltimep, col= myColor, main = "Enriched genes and pathways Day 0~0.5", cluster_cols = FALSE, cluster_rows = FALSE, annotation_row = Pathway_info, fontsize_row = 10, border_color = NA, scale = "row")
+
+# we still have duplicate names in this graph as i just merged the 3 pathway sets
+# Export original file without duplicates gene names
+# In excel I added a column with the pathway information e.g. JAKSTAT, TNFa, NFkB, JAKSTAT/NFkB and TNFa/NFkB
+#install.packages("xlsx")
+library("xlsx")
+write.xlsx(Full_enriched_gene_set_0_0.5_alltimepoints, file = "Full_enriched_gene_set_0_0.5_alltimepoints.xlsx", row.names = TRUE, col.names = TRUE)
+
+# Load new matrix in Rstudio
+# Change first column to rownames
+library(readxl)
+Full_enriched_gene_set_0_0_5_alltimepoints_path <- read_excel("data/Combined heatmap datasets counts + gene per pathway/Full_enriched_gene_set_0_0.5_alltimepoints.xlsx")
+Full_enriched_gene_set_0_0_5_alltimepoints_path<- column_to_rownames(Full_enriched_gene_set_0_0_5_alltimepoints_path, var="...1")
+Full_enriched_gene_set_0_0_5_alltimepoints_path<-as.matrix(Full_enriched_gene_set_0_0_5_alltimepoints_path)
+# Metadata/annotation data with gene and pathway info
+Pathway_info_0_0.5<-as.data.frame(Full_enriched_gene_set_0_0_5_alltimepoints_path)
+Pathway_info_0_0.5<-Pathway_info_0_0.5[-c(1:10)]
+#view(Pathway_info_0_0.5)
+
+
+# Determine color annotation pathways
+Pathways        <- c("#f2f0f7", "#dadaeb","#bcbddc","#9e9ac8","#756bb1")
+names(Pathways) <- c("JAKSTAT", "JAKSTAT/NFkB", "NFkB", "TNFa", "TNFa/NFkB")
+anno_colors <- list(Pathways = Pathways)
+
+# Use different colors for in heatmap --->
+MyReds<-brewer.pal(9, "Reds")
+
+# Call function
+library(pheatmap)
+pheatmap(Full_enriched_gene_set_0_0.5_alltimepoints, col= myColor, main = "Enriched genes and pathways Day 0~0.5", cluster_cols = FALSE, cluster_rows = TRUE, annotation_colors = anno_colors, annotation_row = Pathway_info_0_0.5, fontsize_row = 5, border_color = NA, scale = "row")
+```
+
+### Differential expression set Day 0.5 - Day 1
+#### Gene set enrichment analysis
+```{r}
+# Use the datasubsets from the rmd file "Subset_20220224"
+# For this analysis I will use the sets that orders based upon p-value
+Differentialexpressiondata_0.5_1<-data.frame(res0.5_1_p0.05)
+# check how many values are actually significant
+sum(Differentialexpressiondata_0.5_1$padj<0.05, na.rm = TRUE) # 90 genes
+# create new set that contains the test statistic, the rownames and padj values (we need padj for filtering; you can also do this within dataviewer) 
+Top_Differentialexpressiondata_0.5_1<-data.frame(Differentialexpressiondata_0.5_1$stat, Differentialexpressiondata_0.5_1$padj)
+Top_Differentialexpressiondata_0.5_1$ID<-rownames(Differentialexpressiondata_0.5_1)
+# Change ID's to Gene symbols
+genesgsea_0.5_1<-Top_Differentialexpressiondata_0.5_1$ID
+Gene_gsea_list_0.5_1 <- getBM(filters = "ensembl_gene_id", attributes = c("ensembl_gene_id", "hgnc_symbol"), values = genesgsea_0.5_1, mart = martgsea)
+Top_Differentialexpressiondata_0.5_1<-merge(Top_Differentialexpressiondata_0.5_1, Gene_gsea_list_0.5_1 , by.x="ID", by.y="ensembl_gene_id") 
+# Change column names; this is easier for the next piece of code 
+names(Top_Differentialexpressiondata_0.5_1)[1]<-"Ensembl_ID"
+names(Top_Differentialexpressiondata_0.5_1)[2]<-"t"
+names(Top_Differentialexpressiondata_0.5_1)[3]<-"padj"
+names(Top_Differentialexpressiondata_0.5_1)[4]<- "ID"
+# Change empty spaces to NA
+# Replace empty cells with NA #14798 genes
+Top_Differentialexpressiondata_0.5_1[Top_Differentialexpressiondata_0.5_1 == ""] <- NA
+# Remove NA's # 10275 rows
+Top_Differentialexpressiondata_0.5_1<-na.omit(Top_Differentialexpressiondata_0.5_1)
+# install library
+library(tidyverse)
+# set rownames to NULL
+rownames(Top_Differentialexpressiondata_0.5_1)<- NULL
+# Change rownames # in total now 10275 rows/genes
+Top_Differentialexpressiondata_0.5_1<-column_to_rownames(Top_Differentialexpressiondata_0.5_1, var = "ID")
+# Remove ensembl ID's
+Top_Differentialexpressiondata_0.5_1<-Top_Differentialexpressiondata_0.5_1[-c(1)]
+#filter on padj
+Top_Differentialexpressiondata_0.5_1<-Top_Differentialexpressiondata_0.5_1[order(Top_Differentialexpressiondata_0.5_1$padj),]
+# remove p-value
+Top_Differentialexpressiondata_0.5_1<-Top_Differentialexpressiondata_0.5_1[-c(2)]
+```
+
+```{r}
+# load progeny library
+library(progeny)
+
+
+# Perform GSEA
+# Create matrix object
+GSEA_matrix_0.5_1<-as.matrix(Top_Differentialexpressiondata_0.5_1)
+
+# Create z-scores
+PathwayActivity_zscore_0.5_1 <- progeny(GSEA_matrix_0.5_1, 
+    scale=TRUE, organism="Human", top = 100, perm = 1000, z_scores = TRUE) %>%
+    t()
+colnames(PathwayActivity_zscore_0.5_1) <- "NES"
+# PROGENy magic
+PathwayActivity_zscore_0.5_1_df <- as.data.frame(PathwayActivity_zscore_0_0.5) %>% 
+    rownames_to_column(var = "Pathway") %>%
+    dplyr::arrange(NES) %>%
+    dplyr::mutate(Pathway = factor(Pathway))
+
+ggplot(PathwayActivity_zscore_0.5_1_df,aes(x = reorder(Pathway, NES), y = NES)) + 
+    geom_bar(aes(fill = NES), stat = "identity") +
+    scale_fill_gradient2(low = "darkblue", high = "indianred", 
+        mid = "whitesmoke", midpoint = 0) + 
+    theme_minimal() +
+    theme(axis.title = element_text(face = "bold", size = 12),
+        axis.text.x = 
+            element_text(angle = 45, hjust = 1, size =10, face= "bold"),
+        axis.text.y = element_text(size =10, face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+    xlab("Pathways")
+```
+Based upon these results it becomes apparant that the TNFa, JAK.STAT and NFkB pathways are enriched in the early differentiation timepoints 0.5-1 In order to gain additional insight into which genes contribute to this enrichment.
+
+#### Genes responsible for pathway enrichment
+```{r}
+# Use same data as for GSEA time but set rownames to column
+Gene_enrichment_0.5_1<-rownames_to_column(Top_Differentialexpressiondata_0.5_1, var = "ID")
+Gene_enrichment_0.5_1<-data.frame(Gene_enrichment_0.5_1)
+# Create PROGENy weights matrix
+prog_matirx<-getModel("Human", top=100) %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("GeneID")
+```
+
+##### TNFa
+```{r}
+scat_plots_TNFa_0.5_1 <- progeny::progenyScatter(df = Gene_enrichment_0.5_1, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_TNFa_0_0.5[[1]]$'TNFa')
+
+# Include heatmap of enriched TNFa genes
+TNFa_enriched_gene_set_0.5_1<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("RHCG","MMP10","IL1RN","TNFAIP2","IL36G","KRT6B","IGFL1","SOD2","TLR2","CLDN1","MMP9","NFKBIA", "B4GALT1", "IFNGR2","CXCL5","PLAU","BIRC3","BCL2A1","CXCL8","RHBDL2","CFB","SERPINA3","EFNA1","CXCL3","TNIP1","SDC4","CXCL6","IRF1","NINJ1"
+  
+),]
+# Only colums 1 and 2 are interesing here because we're looking at the differential expression between those!
+# Therefore remove other columns
+TNFa_enriched_gene_set_0.5_1<-TNFa_enriched_gene_set_0.5_1[-c(1,4:10)]
+# heatmap
+pheatmap(TNFa_enriched_gene_set_0.5_1,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched TNFa genes comparison Day 0.5~1", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+
+```
+Genes contributing to TNFa enrichement (red): 
+1. RHCG 
+2. MMP10
+3. IL1RN
+4. TNFAIP2
+5. IL36G
+6. KRT6B
+7. IGFL1
+8. SOD2
+9. TLR2
+10. CLDN1
+11. MMP9
+12. NFKBIA
+13. B4GAL...
+14. IFNGR2
+15. CXCL5
+16. PLAU
+17. BIRC3
+18. BCL2A1
+19. CXCL8
+20. RHBDL2
+21. CFB
+22. SERPINA3
+23. EFNA1
+24. CXCL3
+25. TNIP1
+26. SDC4
+27. CXCL6
+28. IRF1
+
+
+Genes contributing to TNFa enrichment (blue):
+1. NINJ1
+
+Here we observe some partial overlap in genes causing the enrichment in comparison to subset 1 (0_0.5). However, it might be of greater interest to look at the differences.
+
+##### Jak.stat 
+```{r}
+scat_plots_JAK.STAT_0.5_1 <- scat_plots_JAKSTAT <- progeny::progenyScatter(df = Gene_enrichment_0.5_1 , weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_JAK.STAT_0.5_1[[1]]$`JAK-STAT`)
+
+# Include heatmap of enriched TNFa genes
+JAKSTAT_enriched_gene_set_0.5_1<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("TRIM21","IFIH1","ZC3HAV1","TAP1","DDX58","OAS1","TRIM25","HELZ2","SAMD9","IFI44","APOL6","PARP9","IFIT3","IFIT1","MYD88","TDRD7","IFIT5","USP18","CMPK2","RSAD2", "IFI35", "IFI6","IFI27","ISG15"
+),]
+# Only colums 2 and 3 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+JAKSTAT_enriched_gene_set_0.5_1<-JAKSTAT_enriched_gene_set_0.5_1[-c(1,4:10)]
+# heatmap
+pheatmap(JAKSTAT_enriched_gene_set_0.5_1,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched JAK-STAT genes comparison Day 0.5~1", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+
+  
+```
+Genes contributing to JAK.STAT enrichement (red): 
+1. IFI35 (interesting as it neg contributes in subset 0_0.5)
+2. IFI6
+3. IFI27
+4. ISG15
+
+Genes contributing to JAK.STAT enrichment (blue):
+1. TRIM21
+2. IFIH1
+3. ZC3HAV1
+4. TAP1
+5. DDX58
+6. OAS1
+7. TRIM25
+8. HELZ2
+9. SAMD9
+10. IFI44
+11. APOL6
+12. PARP9
+13. IFIT3
+14. IFIT1
+15. MYD88
+16. TDRD7
+17. IFIT5
+18. USP18
+19. CMPK2
+20. RSAD2
+
+##### NFkB
+```{r}
+scat_plots_NFkB_0.5_1 <- progeny::progenyScatter(df = Gene_enrichment_0.5_1 , weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_JAK.STAT_0.5_1[[1]]$`NFkB`)
+
+# Include heatmap of enriched TNFa genes
+NFKB_enriched_gene_set_0.5_1<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c( "RNF19B","MAP3K8","CD83","GCH1","BIRC2","TNFAIP8","NFKBIE","TNFAIP2","NFKBIZ","B4GALT1","IFIH1", 
+                                                                                                   
+                                                                                                   
+ "IFNGR2", "TNIP1","EFNA1","IL1RN","IL1A","NFKB1","IRF1","PRDM1","EHD1","SDC4","BIRC3","IRAK2","NFKBIA","IL36G","INHBA","SOD2","IL23A","CXCL5","IL1B","CXCL3","CXCL1","TNFAIP3","CXCL8","NINJ1"
+),]
+# Only colums 2 and 3 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+NFKB_enriched_gene_set_0.5_1<-NFKB_enriched_gene_set_0.5_1[-c(1,4:10)]
+# heatmap
+pheatmap(NFKB_enriched_gene_set_0.5_1,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched NFkB genes comparison Day 0.5~1", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+  
+```
+Genes negatively contributing to NFkB enrichement (red): 
+1. NINJ1 (interesting as it contributes to positive enrichment in subset 0_0.5)
+
+Genes positively contributing to NFkB enrichment (blue):
+1. RNF19B
+2. MAP3K8
+3. CD83
+4.
+5. BIRC2
+6. TNFAIP8
+7. NFKBIE
+8. TNFAIP2
+9. NFKBIZ
+10. B4GALT1
+11. IFIH1
+12. IFNGR2
+13. TNIP1
+14. EFNA1
+15. IL1RN
+16. IL1A
+17. NFKB1
+18. IRF1
+19. PRDM1
+20. EHD1
+21. SDC4
+22. BIRC3
+23. IRAK2
+24. NFKBIA
+25. IL36G
+26. INHBA
+27. SOD2
+28. IL23A
+29. CXCL5
+30. IL1B
+31. CXCL3
+32. CXCL1
+33. TNFAIP3
+34. CXCL8
+
+#### Heatmap containing all enriched genes
+```{r}
+# include df that contains pathway information column
+  # TNFa
+TNFa_enriched_gene_set_0.5_1<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("RHCG","MMP10","IL1RN","TNFAIP2","IL36G","KRT6B","IGFL1","SOD2","TLR2","CLDN1","MMP9","NFKBIA", "B4GALT1", "IFNGR2","CXCL5","PLAU","BIRC3","BCL2A1","CXCL8","RHBDL2","CFB","SERPINA3","EFNA1","CXCL3","TNIP1","SDC4","CXCL6","IRF1","NINJ1"),]
+  # JAKSTAT
+JAKSTAT_enriched_gene_set_0.5_1<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("TRIM21","IFIH1","ZC3HAV1","TAP1","DDX58","OAS1","TRIM25","HELZ2","SAMD9","IFI44","APOL6","PARP9","IFIT3","IFIT1","MYD88","TDRD7","IFIT5","USP18","CMPK2","RSAD2", "IFI35", "IFI6","IFI27","ISG15"
+),]
+ # TNFa
+NFKB_enriched_gene_set_0.5_1<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c( "RNF19B","MAP3K8","CD83","GCH1","BIRC2","TNFAIP8","NFKBIE","TNFAIP2","NFKBIZ","B4GALT1","IFIH1", 
+ "IFNGR2", "TNIP1","EFNA1","IL1RN","IL1A","NFKB1","IRF1","PRDM1","EHD1","SDC4","BIRC3","IRAK2","NFKBIA","IL36G","INHBA","SOD2","IL23A","CXCL5","IL1B","CXCL3","CXCL1","TNFAIP3","CXCL8","NINJ1"
+),]
+
+  # TNFa
+TNFa_enriched_gene_set_0.5_1['pathway']<-NA
+TNFa_enriched_gene_set_0.5_1$pathway <- ifelse(is.na(TNFa_enriched_gene_set_0.5_1$pathway), 'TNFa', TNFa_enriched_gene_set_0.5_1$pathway)
+  # jakstat
+JAKSTAT_enriched_gene_set_0.5_1['pathway']<-NA
+JAKSTAT_enriched_gene_set_0.5_1$pathway <- ifelse(is.na(JAKSTAT_enriched_gene_set_0.5_1$pathway), 'JAKSTAT', JAKSTAT_enriched_gene_set_0.5_1$pathway)
+  # NFKB
+NFKB_enriched_gene_set_0.5_1['pathway']<-NA
+NFKB_enriched_gene_set_0.5_1$pathway <- ifelse(is.na(NFKB_enriched_gene_set_0.5_1$pathway), 'NFkB', NFKB_enriched_gene_set_0.5_1$pathway)
+
+# bind dataframes containing pathway info
+Full_enriched_gene_set_0.5_1_alltimep<- dplyr::bind_rows(TNFa_enriched_gene_set_0.5_1,JAKSTAT_enriched_gene_set_0.5_1,NFKB_enriched_gene_set_0.5_1)
+
+# we still have duplicate names in this graph as i just merged the 3 pathway sets
+# Export original file without duplicates gene names
+# In excel I added a column with the pathway information e.g. JAKSTAT, TNFa, NFkB, JAKSTAT/NFkB and TNFa/NFkB
+#install.packages("xlsx")
+#library("xlsx")
+#write.xlsx(Full_enriched_gene_set_0.5_1_alltimep, file = "Full_enriched_gene_set_0.5_1_alltimep.xlsx", row.names = TRUE, col.names = TRUE)
+
+# Load new matrix in Rstudio
+# Change first column to rownames
+library(readxl)
+Full_enriched_gene_set_0.5_1_alltimepoints_path <-  read_excel("data/Combined heatmap datasets counts + gene per pathway/Full_enriched_gene_set_0.5_1_alltimep.xlsx")
+Full_enriched_gene_set_0.5_1_alltimepoints_path<- column_to_rownames(Full_enriched_gene_set_0.5_1_alltimepoints_path, var="...1")
+
+# Metadata/annotation data with gene and pathway info
+Pathway_info_0.5_1<-as.data.frame(Full_enriched_gene_set_0.5_1_alltimepoints_path)
+Pathway_info_0.5_1<-Pathway_info_0.5_1[-c(1:10)]
+#view(Pathway_info_0_0.5)
+
+# countmatrix without pathway info for plotting
+Full_enriched_gene_set_0.5_1_alltimepoints<-Full_enriched_gene_set_0.5_1_alltimepoints_path
+Full_enriched_gene_set_0.5_1_alltimepoints<-Full_enriched_gene_set_0.5_1_alltimepoints[-c(11)]
+
+# Determine color annotation pathways
+Pathways        <- c("#f2f0f7", "#dadaeb", "#bcbddc", "#9e9ac8", "#756bb1", "#54278f")
+names(Pathways) <- c("TNFa", "NFkB", "JAKSTAT", "TNFa/NFkB", "JAKSTAT/NFkB")
+anno_colors <- list(Pathways = Pathways)
+
+
+# Call function
+library(pheatmap)
+pheatmap::pheatmap(Full_enriched_gene_set_0.5_1_alltimepoints, col= myColor, main = "Enriched genes and pathways Day 0.5~1", cluster_cols = FALSE, cluster_rows = TRUE, annotation_colors = anno_colors ,annotation_row = Pathway_info_0.5_1, fontsize_row = 5, border_color = NA, scale = "row")
+```
+
+### Differential expression set Day 1 - Day 1.5
+#### Gene set enrichment analysis
+```{r}
+# Use the datasubsets from the rmd file "Subset_20220224"
+# For this analysis I will use the sets that orders based upon p-value
+Differentialexpressiondata_1_1.5<-data.frame(res1_1.5_p0.05)
+# check how many values are actually significant
+sum(Differentialexpressiondata_1_1.5$padj<0.05, na.rm = TRUE) # 271 genes
+# create new set that contains the test statistic, the rownames and padj values (we need padj for filtering; you can also do this within dataviewer) 
+Top_Differentialexpressiondata_1_1.5<-data.frame(Differentialexpressiondata_1_1.5$stat, Differentialexpressiondata_1_1.5$padj)
+Top_Differentialexpressiondata_1_1.5$ID<-rownames(Differentialexpressiondata_1_1.5)
+# Change ID's to Gene symbols
+genesgsea_1_1.5<-Top_Differentialexpressiondata_1_1.5$ID
+Gene_gsea_list_1_1.5 <- getBM(filters = "ensembl_gene_id", attributes = c("ensembl_gene_id", "hgnc_symbol"), values = genesgsea_1_1.5, mart = martgsea)
+Top_Differentialexpressiondata_1_1.5<-merge(Top_Differentialexpressiondata_1_1.5, Gene_gsea_list_1_1.5 , by.x="ID", by.y="ensembl_gene_id") 
+# Change column names; this is easier for the next piece of code 
+names(Top_Differentialexpressiondata_1_1.5)[1]<-"Ensembl_ID"
+names(Top_Differentialexpressiondata_1_1.5)[2]<-"t"
+names(Top_Differentialexpressiondata_1_1.5)[3]<-"padj"
+names(Top_Differentialexpressiondata_1_1.5)[4]<- "ID"
+# Change empty spaces to NA
+# Replace empty cells with NA #52090 genes
+Top_Differentialexpressiondata_1_1.5[Top_Differentialexpressiondata_1_1.5 == ""] <- NA
+# Remove NA's # 12165 rows
+Top_Differentialexpressiondata_1_1.5<-na.omit(Top_Differentialexpressiondata_1_1.5)
+# install library
+library(tidyverse)
+# set rownames to NULL
+rownames(Top_Differentialexpressiondata_1_1.5)<- NULL
+# Change rownames # in total now 10275 rows/genes
+Top_Differentialexpressiondata_1_1.5<-column_to_rownames(Top_Differentialexpressiondata_1_1.5, var = "ID")
+# Remove ensembl ID's
+Top_Differentialexpressiondata_1_1.5<-Top_Differentialexpressiondata_1_1.5[-c(1)]
+#filter on padj
+Top_Differentialexpressiondata_1_1.5<-Top_Differentialexpressiondata_1_1.5[order(Top_Differentialexpressiondata_1_1.5$padj),]
+# remove p-value
+Top_Differentialexpressiondata_1_1.5<-Top_Differentialexpressiondata_1_1.5[-c(2)]
+```
+
+```{r}
+# load progeny library
+library(progeny)
+
+
+# Perform GSEA
+# Create matrix object
+GSEA_matrix_1_1.5<-as.matrix(Top_Differentialexpressiondata_1_1.5)
+
+# Create z-scores
+PathwayActivity_zscore_1_1.5 <- progeny(GSEA_matrix_1_1.5, 
+    scale=TRUE, organism="Human", top = 100, perm = 1000, z_scores = TRUE) %>%
+    t()
+colnames(PathwayActivity_zscore_1_1.5) <- "NES"
+# PROGENy magic
+
+PathwayActivity_zscore_1_1.5_df <- as.data.frame(PathwayActivity_zscore_1_1.5) %>% 
+    rownames_to_column(var = "Pathway") %>%
+    dplyr::arrange(NES) %>%
+    dplyr::mutate(Pathway = factor(Pathway))
+
+ggplot(PathwayActivity_zscore_1_1.5_df,aes(x = reorder(Pathway, NES), y = NES)) + 
+    geom_bar(aes(fill = NES), stat = "identity") +
+    scale_fill_gradient2(low = "darkblue", high = "indianred", 
+        mid = "whitesmoke", midpoint = 0) + 
+    theme_minimal() +
+    theme(axis.title = element_text(face = "bold", size = 12),
+        axis.text.x = 
+            element_text(angle = 45, hjust = 1, size =10, face= "bold"),
+        axis.text.y = element_text(size =10, face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+    xlab("Pathways")
+```
+Based upon these results it becomes apparant that the P53 pathway is enriched in the early differentiation timepoints 1_1.5. However, some interesting pathways such as JAK.STAT and MAPK show underenrichment. 
+#### Genes responsible for pathway enrichment
+```{r}
+# Use same data as for GSEA time but set rownames to column
+Gene_enrichment_1_1.5<-rownames_to_column(Top_Differentialexpressiondata_1_1.5, var = "ID")
+Gene_enrichment_1_1.5<-data.frame(Gene_enrichment_1_1.5)
+# Create PROGENy weights matrix
+prog_matirx<-getModel("Human", top=100) %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("GeneID")
+```
+
+##### P53
+```{r, warning=FALSE}
+scat_plots_p53_1_1.5 <- progeny::progenyScatter(df = Gene_enrichment_1_1.5, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_p53_1_1.5[[1]]$'p53')
+
+# Include heatmap of enriched p53 genes
+p53_enriched_gene_set_1_1.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("GDF15","NECTIN4","UNC5B","BLOC1S2","TMEM63B","CLCA2","SERPINB5","CES2","ABCA12","RETSAT","GRHL3","ANKRA2","TNRSF10B","MDM2","UNC5B-AS1", "ZNF83"
+),]
+# Only colums 3 and 4 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+p53_enriched_gene_set_1_1.5<-p53_enriched_gene_set_1_1.5[-c(1:2,5:10)]
+# heatmap
+pheatmap::pheatmap(p53_enriched_gene_set_1_1.5,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched p53 genes comparison Day 1~1.5", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes negatively contributing to p53 enrichement (red): 
+1. GDF15
+2. NECTIN4
+3. UNC5B
+4. BLOC1S2
+5. TMEM63B
+6. CLCA2
+7. SERPINB5
+8. CES2
+9. ABCA12
+10. RETSAT
+11. GRHL3
+12. ANKRA2
+13. TNRSF10B
+14. MDM2
+15. UNC5B-AS1
+
+Genes positively contributing to p53 enrichment (blue):
+1. ZNF83
+
+##### Jak.stat
+```{r}
+scat_plots_jak.stat_1_1.5 <- progeny::progenyScatter(df = Gene_enrichment_1_1.5, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_jak.stat_1_1.5[[1]]$'JAK-STAT')
+
+# Include heatmap of enriched jakstat genes
+jakstat_enriched_gene_set_1_1.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("IRF7","SAMD9L","EIF2AK2","LAP3","DX60L","STAT1","DDX60","IFIT3","PARP14","SAMD9","MX2","HERC6","OAS2","OAS3","OAS1","ISG15","MX1","IFI3","SAMHD1"
+),]
+# Only colums 3 and 4 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+jakstat_enriched_gene_set_1_1.5<-jakstat_enriched_gene_set_1_1.5[-c(1:2,5:10)]
+# heatmap
+pheatmap::pheatmap(jakstat_enriched_gene_set_1_1.5,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched JAK-STAT genes comparison Day 1~1.5", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to p53 enrichement (red): 
+None
+
+Genes contributing to p53 enrichment (blue):
+1. IRF7
+2. SAMD9L
+3. EIF2AK2
+4. LAP3
+5. DX60L
+6. STAT1
+7. DDX60
+8. IFIT3
+9. PARP14
+10. SAMD9
+11. MX2
+12. HERC6
+13. OAS2
+14. OAS3
+15. OAS1
+16. ISG15
+17. MX1
+18. IFI35
+19. SAMHD1
+
+##### PI3K
+```{r}
+scat_plots_PI3K_1_1.5 <- progeny::progenyScatter(df = Gene_enrichment_1_1.5, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_PI3K_1_1.5[[1]]$'PI3K')
+
+# Include heatmap of enriched PI3K genes
+PI3K_enriched_gene_set_1_1.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("EPB41L4A-AS1","FBXO25","TMEM42","UBALD2","DNAL4","DHRS12"),]
+# Only colums 3 and 4 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+PI3K_enriched_gene_set_1_1.5<-PI3K_enriched_gene_set_1_1.5[-c(1:2,5:10)]
+# heatmap
+pheatmap::pheatmap(PI3K_enriched_gene_set_1_1.5,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched PI3K genes comparison Day 1~1.5", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to PI3K enrichement (red): 
+None
+
+Genes contributing to PI3K enrichment (blue):
+1. EPB41L4A-AS1
+2. FBXO25
+3. TMEM42
+4. UBALD2
+5. DNAL4
+6. DHRS12
+
+#### EGFR
+```{r}
+scat_plots_EGFR_1_1.5 <- progeny::progenyScatter(df = Gene_enrichment_1_1.5, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_EGFR_1_1.5[[1]]$'EGFR')
+
+# Include heatmap of enriched EGFR genes
+EGFR_enriched_gene_set_1_1.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("ZBED8","EPHA2","PHLDA1","AJUBA","VAV3","KIAA1522","CFL1","LAMC2","PNP","FOSL1","DUSP6","HMOX2","PTHLH","DUSP4","DUSP6"),]
+# Only colums 3 and 4 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+EGFR_enriched_gene_set_1_1.5<-EGFR_enriched_gene_set_1_1.5[-c(1:2,5:10)]
+# heatmap
+pheatmap::pheatmap(EGFR_enriched_gene_set_1_1.5,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched EGFR genes comparison Day 1~1.5", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to EGFR enrichement (red): 
+1. ZBED8
+2. EPHA2
+3. PHLDA1
+
+Genes contributing to EGFR enrichment (blue):
+1. AJUBA
+2. VAV3
+3. KIAA1522
+4. CFL1
+5. LAMC2
+6. PNP
+7. FOSL1
+8. DUSP6
+9. HMOX2
+10. PTHLH
+11. DUSP4
+12. DUSP6
+
+##### MAPK
+```{r}
+scat_plots_MAPK_1_1.5 <- progeny::progenyScatter(df = Gene_enrichment_1_1.5, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_MAPK_1_1.5[[1]]$'MAPK')
+
+# Include heatmap of enriched MAPK genes
+MAPK_enriched_gene_set_1_1.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("PHLDA1","EPHA2","DNASE2","KIAA1522","PRCP","PBX1","SCPEP1","LRP8","PNP","SLC20A1","PHC2","LDLR"," NT5E","POLR3G","ELK3","HMGA2","UBASH3B","FERMT1","ETV1","ETV4","DUSP4","DUUSP6","SMURF2","DCBLD2"),]
+# Only colums 3 and 4 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+MAPK_enriched_gene_set_1_1.5<-MAPK_enriched_gene_set_1_1.5[-c(1:2,5:10)]
+# heatmap
+pheatmap::pheatmap(MAPK_enriched_gene_set_1_1.5,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched MAPK genes comparison Day 1~1.5", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes negatively contributing to p53 enrichement (red): 
+1. PHLDA1
+2. EPHA2
+
+Genes positively contributing to p53 enrichment (blue):
+1. DNASE2
+2. KIAA1522
+3. PRCP
+4. PBX1
+5. SCPEP1
+6. LRP8
+7. PNP
+8. SLC20A1
+9. PHC2
+10. LDLR
+11. NT5E
+12. POLR3G
+13. ELK3
+14. HMGA2
+15. UBASH3B
+16. FERMT1
+17. ETV1
+18. ETV4
+19. DUSP4
+20. DUUSP6
+21. SMURF2
+22. DCBLD2
+
+#### Heatmap containing all enriched genes
+```{r}
+# include df that contains pathway information column
+p53_enriched_gene_set_1_1.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("GDF15","NECTIN4","UNC5B","BLOC1S2","TMEM63B","CLCA2","SERPINB5","CES2","ABCA12","RETSAT","GRHL3","ANKRA2","TNRSF10B","MDM2","UNC5B-AS1", "ZNF83"
+),]
+jakstat_enriched_gene_set_1_1.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("IRF7","SAMD9L","EIF2AK2","LAP3","DX60L","STAT1","DDX60","IFIT3","PARP14","SAMD9","MX2","HERC6","OAS2","OAS3","OAS1","ISG15","MX1","IFI3","SAMHD1"
+),]
+PI3K_enriched_gene_set_1_1.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("EPB41L4A-AS1","FBXO25","TMEM42","UBALD2","DNAL4","DHRS12"),]
+EGFR_enriched_gene_set_1_1.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("ZBED8","EPHA2","PHLDA1","AJUBA","VAV3","KIAA1522","CFL1","LAMC2","PNP","FOSL1","DUSP6","HMOX2","PTHLH","DUSP4","DUSP6"),]
+MAPK_enriched_gene_set_1_1.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("PHLDA1","EPHA2","DNASE2","KIAA1522","PRCP","PBX1","SCPEP1","LRP8","PNP","SLC20A1","PHC2","LDLR"," NT5E","POLR3G","ELK3","HMGA2","UBASH3B","FERMT1","ETV1","ETV4","DUSP4","DUUSP6","SMURF2","DCBLD2"),]
+
+  # P53
+p53_enriched_gene_set_1_1.5['pathway']<-NA
+p53_enriched_gene_set_1_1.5$pathway <- ifelse(is.na(p53_enriched_gene_set_1_1.5$pathway), 'P53', p53_enriched_gene_set_1_1.5$pathway)
+  # jakstat
+jakstat_enriched_gene_set_1_1.5['pathway']<-NA
+jakstat_enriched_gene_set_1_1.5$pathway <- ifelse(is.na(jakstat_enriched_gene_set_1_1.5$pathway), 'JAKSTAT', jakstat_enriched_gene_set_1_1.5$pathway)
+  # PI3K
+PI3K_enriched_gene_set_1_1.5['pathway']<-NA
+PI3K_enriched_gene_set_1_1.5$pathway <- ifelse(is.na(PI3K_enriched_gene_set_1_1.5$pathway), 'PI3K', PI3K_enriched_gene_set_1_1.5$pathway)
+  # EGFR
+EGFR_enriched_gene_set_1_1.5['pathway']<-NA
+EGFR_enriched_gene_set_1_1.5$pathway <- ifelse(is.na(EGFR_enriched_gene_set_1_1.5$pathway), 'EGFR', EGFR_enriched_gene_set_1_1.5$pathway)
+  # MAPK
+MAPK_enriched_gene_set_1_1.5['pathway']<-NA
+MAPK_enriched_gene_set_1_1.5$pathway <- ifelse(is.na(MAPK_enriched_gene_set_1_1.5$pathway), 'MAPK', MAPK_enriched_gene_set_1_1.5$MAPK)
+
+# bind dataframes containing pathway info
+Full_enriched_gene_set_1_1.5_alltimep<- dplyr::bind_rows(p53_enriched_gene_set_1_1.5,jakstat_enriched_gene_set_1_1.5,PI3K_enriched_gene_set_1_1.5,EGFR_enriched_gene_set_1_1.5,MAPK_enriched_gene_set_1_1.5)
+
+# we still have duplicate names in this graph as i just merged the 3 pathway sets
+# Export original file without duplicates gene names
+# In excel I added a column with the pathway information e.g. JAKSTAT, TNFa, NFkB, JAKSTAT/NFkB and TNFa/NFkB
+#install.packages("xlsx")
+#library("xlsx")
+#write.xlsx(Full_enriched_gene_set_1_1.5_alltimep, file = "Full_enriched_gene_set_1_1.5_alltimep.xlsx", row.names = TRUE, col.names = TRUE)
+
+# Load new matrix in Rstudio
+# Change first column to rownames
+library(readxl)
+Full_enriched_gene_set_1_1_5_alltimepoints_path <- read_excel("data/Combined heatmap datasets counts + gene per pathway/Full_enriched_gene_set_1_1.5_alltimep.xlsx")
+Full_enriched_gene_set_1_1_5_alltimepoints_path<- column_to_rownames(Full_enriched_gene_set_1_1_5_alltimepoints_path, var="...1")
+
+# Metadata/annotation data with gene and pathway info
+Pathway_info_1_1.5<-as.data.frame(Full_enriched_gene_set_1_1_5_alltimepoints_path)
+Pathway_info_1_1.5<-Pathway_info_1_1.5[-c(1:10)]
+#view(Pathway_info_0_0.5)
+
+# countmatrix without pathway info for plotting
+Full_enriched_gene_set_1_1.5_alltimepoints<-Full_enriched_gene_set_1_1_5_alltimepoints_path
+Full_enriched_gene_set_1_1.5_alltimepoints<-Full_enriched_gene_set_1_1.5_alltimepoints[-c(11)]
+
+# Determine color annotation pathways
+Pathways        <- c("#f2f0f7", "#dadaeb", "#bcbddc", "#9e9ac8", "#756bb1", "#54278f")
+names(Pathways) <- c("p53", "JAKSTAT", "PI3K", "EGFR", "MAPK","EGFR/MAPK")
+anno_colors <- list(Pathways = Pathways)
+
+
+# Call function
+library(pheatmap)
+pheatmap::pheatmap(Full_enriched_gene_set_1_1.5_alltimepoints, col= myColor, main = "Enriched genes and pathways Day 1~1.5", cluster_cols = FALSE, cluster_rows = TRUE, annotation_colors = anno_colors ,annotation_row = Pathway_info_1_1.5, fontsize_row = 5, border_color = NA, scale = "row")
+```
+
+### Differential expression set Day 1.5 - Day 2
+#### Gene set enrichment analysis
+```{r}
+# Use the datasubsets from the rmd file "Subset_20220224"
+# For this analysis I will use the sets that orders based upon p-value
+Differentialexpressiondata_1.5_2<-data.frame(res1.5_2_p0.05)
+# check how many values are actually significant
+sum(Differentialexpressiondata_1.5_2$padj<0.05, na.rm = TRUE) # 392 genes
+# create new set that contains the test statistic, the rownames and padj values (we need padj for filtering; you can also do this within dataviewer) 
+Top_Differentialexpressiondata_1.5_2<-data.frame(Differentialexpressiondata_1.5_2$stat, Differentialexpressiondata_1.5_2$padj)
+Top_Differentialexpressiondata_1.5_2$ID<-rownames(Differentialexpressiondata_1.5_2)
+# Change ID's to Gene symbols
+genesgsea_1.5_2<-Top_Differentialexpressiondata_1.5_2$ID
+Gene_gsea_list_1.5_2 <- getBM(filters = "ensembl_gene_id", attributes = c("ensembl_gene_id", "hgnc_symbol"), values = genesgsea_1.5_2, mart = martgsea)
+Top_Differentialexpressiondata_1.5_2<-merge(Top_Differentialexpressiondata_1.5_2, Gene_gsea_list_1.5_2 , by.x="ID", by.y="ensembl_gene_id") 
+# Change column names; this is easier for the next piece of code 
+names(Top_Differentialexpressiondata_1.5_2)[1]<-"Ensembl_ID"
+names(Top_Differentialexpressiondata_1.5_2)[2]<-"t"
+names(Top_Differentialexpressiondata_1.5_2)[3]<-"padj"
+names(Top_Differentialexpressiondata_1.5_2)[4]<- "ID"
+# Change empty spaces to NA
+# Replace empty cells with NA #14963 genes
+Top_Differentialexpressiondata_1.5_2[Top_Differentialexpressiondata_1.5_2 == ""] <- NA
+# Remove NA's # 8988 genes
+Top_Differentialexpressiondata_1.5_2<-na.omit(Top_Differentialexpressiondata_1.5_2)
+# install library
+library(tidyverse)
+# set rownames to NULL
+rownames(Top_Differentialexpressiondata_1.5_2)<- NULL
+# Change rownames # in total now 10275 rows/genes
+Top_Differentialexpressiondata_1.5_2<-column_to_rownames(Top_Differentialexpressiondata_1.5_2, var = "ID")
+# Remove ensembl ID's
+Top_Differentialexpressiondata_1.5_2<-Top_Differentialexpressiondata_1.5_2[-c(1)]
+#filter on padj
+Top_Differentialexpressiondata_1.5_2<-Top_Differentialexpressiondata_1.5_2[order(Top_Differentialexpressiondata_1.5_2$padj),]
+# remove p-value
+Top_Differentialexpressiondata_1.5_2<-Top_Differentialexpressiondata_1.5_2[-c(2)]
+```
+```{r}
+# load progeny library
+library(progeny)
+
+
+# Perform GSEA
+# Create matrix object
+GSEA_matrix_1.5_2<-as.matrix(Top_Differentialexpressiondata_1.5_2)
+
+# Create z-scores
+PathwayActivity_zscore_1.5_2 <- progeny(GSEA_matrix_1.5_2, 
+    scale=TRUE, organism="Human", top = 100, perm = 1000, z_scores = TRUE) %>%
+    t()
+colnames(PathwayActivity_zscore_1.5_2) <- "NES"
+# PROGENy magic
+
+PathwayActivity_zscore_1.5_2_df <- as.data.frame(PathwayActivity_zscore_1.5_2) %>% 
+    rownames_to_column(var = "Pathway") %>%
+    dplyr::arrange(NES) %>%
+    dplyr::mutate(Pathway = factor(Pathway))
+
+ggplot(PathwayActivity_zscore_1.5_2_df,aes(x = reorder(Pathway, NES), y = NES)) + 
+    geom_bar(aes(fill = NES), stat = "identity") +
+    scale_fill_gradient2(low = "darkblue", high = "indianred", 
+        mid = "whitesmoke", midpoint = 0) + 
+    theme_minimal() +
+    theme(axis.title = element_text(face = "bold", size = 12),
+        axis.text.x = 
+            element_text(angle = 45, hjust = 1, size =10, face= "bold"),
+        axis.text.y = element_text(size =10, face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+    xlab("Pathways")
+```
+Based upon these results it becomes apparant that the JAK.STAT and MAPK pathway is underenriched in the early differentiation timepoints 1.5_2. Interesting as this again overlaps!
+
+#### Genes responsible for pathway enrichment
+```{r}
+# Use same data as for GSEA time but set rownames to column
+Gene_enrichment_1.5_2<-rownames_to_column(Top_Differentialexpressiondata_1.5_2, var = "ID")
+Gene_enrichment_1.5_2<-data.frame(Gene_enrichment_1.5_2)
+# Create PROGENy weights matrix
+prog_matirx<-getModel("Human", top=100) %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("GeneID")
+```
+
+##### JAK.STAT
+```{r}
+scat_plots_jakstat_1.5_2 <- progeny::progenyScatter(df = Gene_enrichment_1.5_2, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_jakstat_1.5_2[[1]]$'JAK-STAT')
+
+# Include heatmap of enriched JAK-STAT genes
+JAKSTAT_enriched_gene_set_1.5_2<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("LAMP3", "TRIM25","SP110","XAF1","GBP1","TAP2","DTX3L","IFI27","EPSTI1","TRIM14","PARP14","HERC5","USP18","DDX58","ISG15","SP100","IFIH1","STAT1","OAS1","MX1","RSAD2","EIFAK2","SAMHD1","OAS2","MX2","IFI44L","IFIT3","IFIT1","DDX60L","PARP9","OAS3","DDX60","IFI44","IFI6 "),]
+# Only colums 4 and AND are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+JAKSTAT_enriched_gene_set_1.5_2<-JAKSTAT_enriched_gene_set_1.5_2[-c(1:3,6:10)]
+# heatmap
+pheatmap(JAKSTAT_enriched_gene_set_1.5_2,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched JAK-STAT genes comparison Day 1.5~2", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to JAK-STAT enrichement (red): 
+1. LAMP3
+2. TRIM25
+
+Genes contributing to JAK-STAT enrichment (blue):
+1. SP110
+2. XAF1
+3. GBP1
+4. TAP2
+5. DTX3L
+6. IFI27
+7. EPSTI1
+8. TRIM14
+9. PARP14
+10. HERC5
+11. USP18
+12. DDX58
+13. ISG15
+14. SP100
+15. IFIH1
+16. STAT1
+17. OAS1
+18. MX1
+19. RSAD2
+20. EIFAK2
+21. SAMHD1
+22. OAS2
+23. MX2
+24. IFI44L
+25. IFIT3
+26. IFIT1
+27. DDX60L
+28. PARP9
+29. OAS3
+30. DDX60
+31. IFI44
+32. IFI6 
+33. CMPK2
+
+##### MAPK
+```{r}
+scat_plots_MAPK_1.5_2 <- progeny::progenyScatter(df = Gene_enrichment_1.5_2, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_MAPK_1.5_2[[1]]$'MAPK')
+
+# Include heatmap of enriched MAPK genes
+MAPK_enriched_gene_set_1.5_2<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("AREG","LAMB2","ECH1","GABARAP","RAB5B","BRIX1","AEN","ETV5","LDLR","DUSP5","TCOF1","ETV4","DUSP4","FOSL1","FERMT1","STK17A","HMGA2","NT5E","ELK3","DCBLD2","DUSP6"),]
+# Only colums 4 and AND are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+MAPK_enriched_gene_set_1.5_2<-MAPK_enriched_gene_set_1.5_2[-c(1:3,6:10)]
+# heatmap
+pheatmap(MAPK_enriched_gene_set_1.5_2,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched MAPK genes comparison Day 1.5~2", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to MAPK enrichement (red): 
+1. AREG
+
+Genes contributing to MAPK enrichment (blue):
+1. LAMB2
+2. ECH1
+3. GABARAP
+4. RAB5B
+5. BRIX1
+6. AEN
+7. ETV5
+8. LDLR
+9. DUSP5
+10. TCOF1
+11. ETV4
+12. DUSP4
+13. FOSL1
+14. FERMT1
+15. STK17A
+16. HMGA2
+17. NT5E
+18. ELK3
+19. DCBLD2
+20. DUSP6
+
+##### EGFR
+```{r}
+scat_plots_EGFR_1.5_2 <- progeny::progenyScatter(df = Gene_enrichment_1.5_2, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_EGFR_1.5_2[[1]]$'EGFR')
+
+# Include heatmap of enriched MAPK genes
+EGFR_enriched_gene_set_1.5_2<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("AEN","PLEK2","DUSP4","DUSP5","PTHLH","LAMC2","FOSL1","DUSP6"),]
+# Only colums 4 and AND are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+EGFR_enriched_gene_set_1.5_2<-EGFR_enriched_gene_set_1.5_2[-c(1:3,6:10)]
+# heatmap
+pheatmap(EGFR_enriched_gene_set_1.5_2,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched EGFR genes comparison Day 1.5~2", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to EGFR enrichement (red): 
+None
+
+Genes contributing to EGFR enrichment (blue):
+1. AEN
+2. PLEK2
+3. DUSP4
+4. DUSP5
+5. PTHLH
+6. LAMC2
+7. FOSL1
+8. DUSP6
+
+#### Heatmap containing all enriched genes
+```{r}
+# include df that contains pathway information column
+JAKSTAT_enriched_gene_set_1.5_2<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("LAMP3", "TRIM25","SP110","XAF1","GBP1","TAP2","DTX3L","IFI27","EPSTI1","TRIM14","PARP14","HERC5","USP18","DDX58","ISG15","SP100","IFIH1","STAT1","OAS1","MX1","RSAD2","EIFAK2","SAMHD1","OAS2","MX2","IFI44L","IFIT3","IFIT1","DDX60L","PARP9","OAS3","DDX60","IFI44","IFI6 "),]
+MAPK_enriched_gene_set_1.5_2<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("AREG","LAMB2","ECH1","GABARAP","RAB5B","BRIX1","AEN","ETV5","LDLR","DUSP5","TCOF1","ETV4","DUSP4","FOSL1","FERMT1","STK17A","HMGA2","NT5E","ELK3","DCBLD2","DUSP6"),]
+EGFR_enriched_gene_set_1.5_2<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("AEN","PLEK2","DUSP4","DUSP5","PTHLH","LAMC2","FOSL1","DUSP6"),]
+
+  # JAKSTAT
+JAKSTAT_enriched_gene_set_1.5_2['pathway']<-NA
+JAKSTAT_enriched_gene_set_1.5_2$pathway <- ifelse(is.na(JAKSTAT_enriched_gene_set_1.5_2$pathway), 'JAKSTAT', JAKSTAT_enriched_gene_set_1.5_2$pathway)
+  # MAPK
+MAPK_enriched_gene_set_1.5_2['pathway']<-NA
+MAPK_enriched_gene_set_1.5_2$pathway <- ifelse(is.na(MAPK_enriched_gene_set_1.5_2$pathway), 'MAPK', MAPK_enriched_gene_set_1.5_2$pathway)
+  # PI3K
+EGFR_enriched_gene_set_1.5_2['pathway']<-NA
+EGFR_enriched_gene_set_1.5_2$pathway <- ifelse(is.na(EGFR_enriched_gene_set_1.5_2$pathway), 'EGFR', EGFR_enriched_gene_set_1.5_2$pathway)
+
+
+# bind dataframes containing pathway info
+Full_enriched_gene_set_1.5_2_alltimep<- dplyr::bind_rows(JAKSTAT_enriched_gene_set_1.5_2,MAPK_enriched_gene_set_1.5_2,EGFR_enriched_gene_set_1.5_2)
+
+# we still have duplicate names in this graph as i just merged the 3 pathway sets
+# Export original file without duplicates gene names
+# In excel I added a column with the pathway information e.g. JAKSTAT, TNFa, NFkB, JAKSTAT/NFkB and TNFa/NFkB
+#install.packages("xlsx")
+#library("xlsx")
+#write.xlsx(Full_enriched_gene_set_1.5_2_alltimep, file = "Full_enriched_gene_set_1.5_2_alltimep.xlsx", row.names = TRUE, col.names = TRUE)
+
+# Load new matrix in Rstudio
+# Change first column to rownames
+library(readxl)
+Full_enriched_gene_set_1.5_2_alltimepoints_path <-  read_excel("data/Combined heatmap datasets counts + gene per pathway/Full_enriched_gene_set_1.5_2_alltimep.xlsx")
+Full_enriched_gene_set_1.5_2_alltimepoints_path<- column_to_rownames(Full_enriched_gene_set_1.5_2_alltimepoints_path, var="...1")
+
+# Metadata/annotation data with gene and pathway info
+Pathway_info_1.5_2<-as.data.frame(Full_enriched_gene_set_1.5_2_alltimepoints_path)
+Pathway_info_1.5_2<-Pathway_info_1.5_2[-c(1:10)]
+#view(Pathway_info_0_0.5)
+
+# countmatrix without pathway info for plotting
+Full_enriched_gene_set_1.5_2_alltimepoints<-Full_enriched_gene_set_1.5_2_alltimepoints_path
+Full_enriched_gene_set_1.5_2_alltimepoints<-Full_enriched_gene_set_1.5_2_alltimepoints[-c(11)]
+
+# Determine color annotation pathways
+Pathways        <- c("#f2f0f7", "#dadaeb", "#bcbddc", "#9e9ac8")
+names(Pathways) <- c("JAKSTAT", "MAPK", "EGFR", "EGFR/MAPK")
+anno_colors <- list(Pathways = Pathways)
+
+
+# Call function
+library(pheatmap)
+pheatmap::pheatmap(Full_enriched_gene_set_1.5_2_alltimepoints, col= myColor, main = "Enriched genes and pathways Day 1.5~2", cluster_cols = FALSE, cluster_rows = TRUE, annotation_colors = anno_colors ,annotation_row = Pathway_info_1.5_2, fontsize_row = 5, border_color = NA, scale = "row")
+```
+
+### Differential expression set Day 2 - 2.5
+#### Gene set enrichment analysis
+```{r}
+# Use the datasubsets from the rmd file "Subset_20220224"
+# For this analysis I will use the sets that orders based upon p-value
+Differentialexpressiondata_2_2.5<-data.frame(res2_2.5_p0.05)
+# check how many values are actually significant
+sum(Differentialexpressiondata_2_2.5$padj<0.05, na.rm = TRUE) # 312 genes
+# create new set that contains the test statistic, the rownames and padj values (we need padj for filtering; you can also do this within dataviewer) 
+Top_Differentialexpressiondata_2_2.5<-data.frame(Differentialexpressiondata_2_2.5$stat, Differentialexpressiondata_2_2.5$padj)
+Top_Differentialexpressiondata_2_2.5$ID<-rownames(Differentialexpressiondata_2_2.5)
+# Change ID's to Gene symbols
+genesgsea_2_2.5<-Top_Differentialexpressiondata_2_2.5$ID
+Gene_gsea_list_2_2.5 <- getBM(filters = "ensembl_gene_id", attributes = c("ensembl_gene_id", "hgnc_symbol"), values = genesgsea_2_2.5, mart = martgsea)
+Top_Differentialexpressiondata_2_2.5<-merge(Top_Differentialexpressiondata_2_2.5, Gene_gsea_list_2_2.5 , by.x="ID", by.y="ensembl_gene_id") 
+# Change column names; this is easier for the next piece of code 
+names(Top_Differentialexpressiondata_2_2.5)[1]<-"Ensembl_ID"
+names(Top_Differentialexpressiondata_2_2.5)[2]<-"t"
+names(Top_Differentialexpressiondata_2_2.5)[3]<-"padj"
+names(Top_Differentialexpressiondata_2_2.5)[4]<- "ID"
+# Change empty spaces to NA
+# Replace empty cells with NA # 8988 genes
+Top_Differentialexpressiondata_2_2.5[Top_Differentialexpressiondata_2_2.5 == ""] <- NA
+# Remove NA's # 8988 genes
+Top_Differentialexpressiondata_2_2.5<-na.omit(Top_Differentialexpressiondata_2_2.5)
+# install library
+library(tidyverse)
+# set rownames to NULL
+rownames(Top_Differentialexpressiondata_2_2.5)<- NULL
+# Change rownames # in total now 8988 rows/genes
+Top_Differentialexpressiondata_2_2.5<-column_to_rownames(Top_Differentialexpressiondata_2_2.5, var = "ID")
+# Remove ensembl ID's
+Top_Differentialexpressiondata_2_2.5<-Top_Differentialexpressiondata_2_2.5[-c(1)]
+#filter on padj
+Top_Differentialexpressiondata_2_2.5<-Top_Differentialexpressiondata_2_2.5[order(Top_Differentialexpressiondata_2_2.5$padj),]
+# remove p-value
+Top_Differentialexpressiondata_2_2.5<-Top_Differentialexpressiondata_2_2.5[-c(2)]
+
+
+```
+
+```{r}
+# load progeny library
+library(progeny)
+
+
+# Perform GSEA
+# Create matrix object
+GSEA_matrix_2_2.5<-as.matrix(Top_Differentialexpressiondata_2_2.5)
+
+# Create z-scores
+PathwayActivity_zscore_2_2.5 <- progeny(GSEA_matrix_2_2.5, 
+    scale=TRUE, organism="Human", top = 100, perm = 1000, z_scores = TRUE) %>%
+    t()
+colnames(PathwayActivity_zscore_2_2.5) <- "NES"
+# PROGENy magic
+
+PathwayActivity_zscore_2_2.5_df <- as.data.frame(PathwayActivity_zscore_2_2.5) %>% 
+    rownames_to_column(var = "Pathway") %>%
+    dplyr::arrange(NES) %>%
+    dplyr::mutate(Pathway = factor(Pathway))
+
+ggplot(PathwayActivity_zscore_2_2.5_df,aes(x = reorder(Pathway, NES), y = NES)) + 
+    geom_bar(aes(fill = NES), stat = "identity") +
+    scale_fill_gradient2(low = "darkblue", high = "indianred", 
+        mid = "whitesmoke", midpoint = 0) + 
+    theme_minimal() +
+    theme(axis.title = element_text(face = "bold", size = 12),
+        axis.text.x = 
+            element_text(angle = 45, hjust = 1, size =10, face= "bold"),
+        axis.text.y = element_text(size =10, face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+    xlab("Pathways")
+```
+JAK.STAT, MAPK, EGFR and PI3K contribute to underenrichment, while P53 and hypoxia which are slowly comming up in comparison to last timepoint contriubte to enrichment of these pathways.
+
+#### Genes responsible for pathway enrichment
+```{r}
+# Use same data as for GSEA time but set rownames to column
+Gene_enrichment_2_2.5<-rownames_to_column(Top_Differentialexpressiondata_2_2.5, var = "ID")
+Gene_enrichment_2_2.5<-data.frame(Gene_enrichment_2_2.5)
+# Create PROGENy weights matrix
+prog_matirx<-getModel("Human", top=100) %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("GeneID")
+```
+
+##### JAK.STAT
+```{r}
+scat_plots_jakstat_2_2.5 <- progeny::progenyScatter(df = Gene_enrichment_2_2.5, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_jakstat_2_2.5[[1]]$'JAK-STAT')
+
+# Include heatmap of enriched JAK-STAT genes
+JAKSTAT_enriched_gene_set_2_2.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("LAMP3"," PSMB9","SP110","GBP1","IFI35","EIF2AK2","LAP3","TRIM22","CMPK2","IFIT3","SP100","LAP3","SAMHD1","UBE2L6","OAS3","MX2","IFI44","ISG15","IFIT1","HERC6","OAS2","EPSTI1","MX1","XAF1","IFI27","IFI6","IFI44L"),]
+# Only colums 5 and AND 6 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+JAKSTAT_enriched_gene_set_2_2.5<-JAKSTAT_enriched_gene_set_2_2.5[-c(1:4,7:10)]
+# heatmap
+pheatmap::pheatmap(JAKSTAT_enriched_gene_set_2_2.5,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched JAK-STAT genes comparison Day 2~2.5", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to JAK-STAT enrichement (red): 
+1. LAMP3
+
+Genes contributing to JAK-STAT enrichment (blue):
+1. PSMB9
+2. SP110
+3. GBP1
+4. IFI35
+5. EIF2AK2
+6. LAP3
+7. TRIM22
+8. CMPK2
+9. IFIT3
+10. SP100
+11. LAP3
+12. SAMHD1
+13. UBE2L6
+14. OAS3
+15. MX2
+16. IFI44
+17. ISG15
+18. IFIT1
+19. HERC6
+20. OAS2
+21. EPSTI1
+22. MX1
+23. XAF1
+24. IFI27
+25. IFI6
+26. IFI44L
+
+##### MAPK
+```{r}
+# Include all labels of enriched genes
+options(ggrepel.max.overlaps= Inf)
+scat_plots_MAPK_2_2.5 <- progeny::progenyScatter(df = Gene_enrichment_2_2.5, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_MAPK_2_2.5[[1]]$'MAPK')
+
+# Include heatmap of enriched MAPK genes
+MAPK_enriched_gene_set_2_2.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("PBX1","GABARAP","RAB5B","LAMB2","DNASE2","UBASH3B","SLC20A1","TMEM59","STK17A","LRP8","CCND1","FERMT1","NT5E","PHLDA1","DUSP6","HMGA2","ETV4","ETV5","DCBLD2"),]
+# Only colums 5 and AND 6 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+MAPK_enriched_gene_set_2_2.5<-MAPK_enriched_gene_set_2_2.5[-c(1:4,7:10)]
+# heatmap
+pheatmap::pheatmap(MAPK_enriched_gene_set_2_2.5,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched MAPK genes comparison Day 2~2.5", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to MAPK enrichment (red):
+None
+
+Genes contributing to MAPK enrichment (blue):
+1. PBX1
+2. GABARAP
+3. RAB5B
+4. LAMB2
+5. DNASE2
+6. UBASH3B
+7. SLC20A1
+8. TMEM59
+9. STK17A
+10. LRP8
+11. CCND1
+12. FERMT1
+13. NT5E
+14. PHLDA1
+15. DUSP6
+16. HMGA2
+17. ETV4
+18. ETV5
+19. DCBLD2
+
+##### EGFR
+```{r}
+# Include all labels of enriched genes
+options(ggrepel.max.overlaps= Inf)
+scat_plots_EGFR_2_2.5 <- progeny::progenyScatter(df = Gene_enrichment_2_2.5, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_EGFR_2_2.5[[1]]$'EGFR')
+
+# Include heatmap of enriched EGFR genes
+EGFR_enriched_gene_set_2_2.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("LZTFL1","TMEM59","FOXN3","CFL1","VPS9D1-AS1","ODC1","LAMC2","PHLDA1","DUSP6"),]
+# Only colums 5 and AND 6 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+EGFR_enriched_gene_set_2_2.5<-EGFR_enriched_gene_set_2_2.5[-c(1:4,7:10)]
+# heatmap
+pheatmap::pheatmap(EGFR_enriched_gene_set_2_2.5,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched EGFR genes comparison Day 2~2.5", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to MAPK enrichment (red):
+None
+
+Genes contributing to MAPK enrichment (blue):
+1. TMEM59
+2. FOXN3
+3. CFL1
+4. VPS9D-AS1
+5. ODC1
+6. LAMC2
+7. PHLDA1
+8. DUSP6
+9. LZTFL1
+
+##### p53
+```{r}
+# Include all labels of enriched genes
+options(ggrepel.max.overlaps= Inf)
+scat_plots_p53_2_2.5 <- progeny::progenyScatter(df = Gene_enrichment_2_2.5, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_p53_2_2.5[[1]]$'p53') 
+
+# Include heatmap of enriched p53 genes
+p53_enriched_gene_set_2_2.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("ARHGAP11A","TP53INP1","UNC5B-AS1","CDKN1A","TRIAP1","GDF15","FBXW7","CES2","CSTA","ABCA12"),]
+# Only colums 5 and AND 6 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+p53_enriched_gene_set_2_2.5<-p53_enriched_gene_set_2_2.5[-c(1:4,7:10)]
+# heatmap
+pheatmap::pheatmap(p53_enriched_gene_set_2_2.5,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched P53 genes comparison Day 2~2.5", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to p53 enrichement (red): 
+1. ARHGAP11A
+2. TP53INP1
+3. UNC5B-AS1
+4. CDKN1A
+5. TRIAP1
+6. GDF15
+7. FBXW7
+8. CES2
+9. CSTA
+10. ABCA12
+
+##### Hypoxia
+```{r}
+scat_plots_HYPOXIA_2_2.5 <- progeny::progenyScatter(df = Gene_enrichment_2_2.5, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_HYPOXIA_2_2.5[[1]]$'Hypoxia')
+
+# Include heatmap of enriched hypoxia genes
+hypoxia_enriched_gene_set_2_2.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("GAPDH","P4HA2","SLC2A1","MIR210HG","TMEM45A","NARF","RORA","EGLN1","ADM","BNIP3L","ZNF395","ERO1A","EGLN3"),]
+# Only colums 5 and AND 6 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+hypoxia_enriched_gene_set_2_2.5<-hypoxia_enriched_gene_set_2_2.5[-c(1:4,7:10)]
+# heatmap
+pheatmap::pheatmap(hypoxia_enriched_gene_set_2_2.5,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched Hypoxia genes comparison Day 2~2.5", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to Hypoxia enrichement (red): 
+1. P4HA2
+2. SLC2A1
+3. MIR210HG
+4. TMEM45A
+5. NARF
+6. RORA
+7. EGLN1
+8. ADM
+9. BNIP3L
+10. ZNF395
+11. ERO1A
+12. EGLN3
+
+Genes contributing to Hypoxia enrichment (blue):
+1. GAPDH
+
+#### Heatmap containing all enriched genes
+```{r}
+# include df that contains pathway information column
+JAKSTAT_enriched_gene_set_2_2.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("LAMP3"," PSMB9","SP110","GBP1","IFI35","EIF2AK2","LAP3","TRIM22","CMPK2","IFIT3","SP100","LAP3","SAMHD1","UBE2L6","OAS3","MX2","IFI44","ISG15","IFIT1","HERC6","OAS2","EPSTI1","MX1","XAF1","IFI27","IFI6","IFI44L"),]
+MAPK_enriched_gene_set_2_2.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("PBX1","GABARAP","RAB5B","LAMB2","DNASE2","UBASH3B","SLC20A1","TMEM59","STK17A","LRP8","CCND1","FERMT1","NT5E","PHLDA1","DUSP6","HMGA2","ETV4","ETV5","DCBLD2"),]
+EGFR_enriched_gene_set_2_2.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("LZTFL1","TMEM59","FOXN3","CFL1","VPS9D1-AS1","ODC1","LAMC2","PHLDA1","DUSP6"),]
+p53_enriched_gene_set_2_2.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("ARHGAP11A","TP53INP1","UNC5B-AS1","CDKN1A","TRIAP1","GDF15","FBXW7","CES2","CSTA","ABCA12"),]
+hypoxia_enriched_gene_set_2_2.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("GAPDH","P4HA2","SLC2A1","MIR210HG","TMEM45A","NARF","RORA","EGLN1","ADM","BNIP3L","ZNF395","ERO1A","EGLN3"),]
+
+  # JAKSTAT
+JAKSTAT_enriched_gene_set_2_2.5['pathway']<-NA
+JAKSTAT_enriched_gene_set_2_2.5$pathway <- ifelse(is.na(JAKSTAT_enriched_gene_set_2_2.5$pathway), 'JAKSTAT', JAKSTAT_enriched_gene_set_2_2.5$pathway)
+  # MAPK
+MAPK_enriched_gene_set_2_2.5['pathway']<-NA
+MAPK_enriched_gene_set_2_2.5$pathway <- ifelse(is.na(MAPK_enriched_gene_set_2_2.5$pathway), 'MAPK', MAPK_enriched_gene_set_2_2.5$pathway)
+  # EGFR
+EGFR_enriched_gene_set_2_2.5['pathway']<-NA
+EGFR_enriched_gene_set_2_2.5$pathway <- ifelse(is.na(EGFR_enriched_gene_set_2_2.5$pathway), 'EGFR', EGFR_enriched_gene_set_2_2.5$pathway)
+  # P53
+p53_enriched_gene_set_2_2.5['pathway']<-NA
+p53_enriched_gene_set_2_2.5$pathway<-ifelse(is.na(p53_enriched_gene_set_2_2.5$pathway), 'P53', p53_enriched_gene_set_2_2.5)
+  # Hypoxia
+hypoxia_enriched_gene_set_2_2.5['pathway']<-NA
+hypoxia_enriched_gene_set_2_2.5$pathway<-ifelse(is.na(hypoxia_enriched_gene_set_2_2.5$pathway), 'Hypoxia', hypoxia_enriched_gene_set_2_2.5)
+
+# bind dataframes containing pathway info
+Full_enriched_gene_set_2_2.5_alltimep<- dplyr::bind_rows(JAKSTAT_enriched_gene_set_2_2.5,MAPK_enriched_gene_set_2_2.5,EGFR_enriched_gene_set_2_2.5,p53_enriched_gene_set_2_2.5,hypoxia_enriched_gene_set_2_2.5)
+
+# we still have duplicate names in this graph as i just merged the 3 pathway sets
+# Export original file without duplicates gene names
+# In excel I added a column with the pathway information e.g. JAKSTAT, TNFa, NFkB, JAKSTAT/NFkB and TNFa/NFkB
+#install.packages("xlsx")
+#library("xlsx")
+#write.xlsx(Full_enriched_gene_set_2_2.5_alltimep, file = "Full_enriched_gene_set_2_2.5_alltimep.xlsx", row.names = TRUE, col.names = TRUE)
+
+# Load new matrix in Rstudio
+# Change first column to rownames
+#library(readxl)
+Full_enriched_gene_set_2_2.5_alltimepoints_path <-  read_excel("data/Combined heatmap datasets counts + gene per pathway/Full_enriched_gene_set_2_2.5_alltimep.xlsx")
+Full_enriched_gene_set_2_2.5_alltimepoints_path<- column_to_rownames(Full_enriched_gene_set_2_2.5_alltimepoints_path, var="...1")
+
+# Metadata/annotation data with gene and pathway info
+Pathway_info_2_2.5<-as.data.frame(Full_enriched_gene_set_2_2.5_alltimepoints_path)
+Pathway_info_2_2.5<-Pathway_info_2_2.5[-c(1:10)]
+#view(Pathway_info_0_0.5)
+
+# countmatrix without pathway info for plotting
+Full_enriched_gene_set_2_2.5_alltimepoints<-Full_enriched_gene_set_2_2.5_alltimepoints_path
+Full_enriched_gene_set_2_2.5_alltimepoints<-Full_enriched_gene_set_2_2.5_alltimepoints[-c(11)]
+
+# Determine color annotation pathways
+Pathways        <- c("#f2f0f7", "#dadaeb", "#bcbddc", "#9e9ac8","#756bb1", "#54278f")
+names(Pathways) <- c("JAKSTAT", "MAPK", "EGFR", "EGFR/MAPK","P53","Hypoxia")
+anno_colors <- list(Pathways = Pathways)
+
+
+# Call function
+library(pheatmap)
+pheatmap::pheatmap(Full_enriched_gene_set_2_2.5_alltimepoints, col= myColor, main = "Enriched genes and pathways Day 2~2.5", cluster_cols = FALSE, cluster_rows = TRUE, annotation_colors = anno_colors ,annotation_row = Pathway_info_2_2.5, fontsize_row = 5, border_color = NA, scale = "row")
+```
+
+### Differential expression set Day 2.5 - 3
+#### Gene set enrichment analysis
+```{r}
+# Use the datasubsets from the rmd file "Subset_20220224"
+# For this analysis I will use the sets that orders based upon p-value
+Differentialexpressiondata_2.5_3<-data.frame(res2.5_3_p0.05)
+# check how many values are actually significant
+sum(Differentialexpressiondata_2.5_3$padj<0.05, na.rm = TRUE) # 56 genes
+# create new set that contains the test statistic, the rownames and padj values (we need padj for filtering; you can also do this within dataviewer) 
+Top_Differentialexpressiondata_2.5_3<-data.frame(Differentialexpressiondata_2.5_3$stat, Differentialexpressiondata_2.5_3$padj)
+Top_Differentialexpressiondata_2.5_3$ID<-rownames(Differentialexpressiondata_2.5_3)
+# Change ID's to Gene symbols
+genesgsea_2.5_3<-Top_Differentialexpressiondata_2.5_3$ID
+Gene_gsea_list_2.5_3 <- getBM(filters = "ensembl_gene_id", attributes = c("ensembl_gene_id", "hgnc_symbol"), values = genesgsea_2.5_3, mart = martgsea)
+Top_Differentialexpressiondata_2.5_3<-merge(Top_Differentialexpressiondata_2.5_3, Gene_gsea_list_2.5_3 , by.x="ID", by.y="ensembl_gene_id") 
+# Change column names; this is easier for the next piece of code 
+names(Top_Differentialexpressiondata_2.5_3)[1]<-"Ensembl_ID"
+names(Top_Differentialexpressiondata_2.5_3)[2]<-"t"
+names(Top_Differentialexpressiondata_2.5_3)[3]<-"padj"
+names(Top_Differentialexpressiondata_2.5_3)[4]<- "ID"
+# Change empty spaces to NA
+# Replace empty cells with NA # 15108 genes
+Top_Differentialexpressiondata_2.5_3[Top_Differentialexpressiondata_2.5_3 == ""] <- NA
+# Remove NA's # 7610 genes
+Top_Differentialexpressiondata_2.5_3<-na.omit(Top_Differentialexpressiondata_2.5_3)
+# install library
+library(tidyverse)
+# set rownames to NULL
+rownames(Top_Differentialexpressiondata_2.5_3)<- NULL
+# Change rownames # in total now 8988 rows/genes
+Top_Differentialexpressiondata_2.5_3<-column_to_rownames(Top_Differentialexpressiondata_2.5_3, var = "ID")
+# Remove ensembl ID's
+Top_Differentialexpressiondata_2.5_3<-Top_Differentialexpressiondata_2.5_3[-c(1)]
+#filter on padj
+Top_Differentialexpressiondata_2.5_3<-Top_Differentialexpressiondata_2.5_3[order(Top_Differentialexpressiondata_2.5_3$padj),]
+# remove p-value
+Top_Differentialexpressiondata_2.5_3<-Top_Differentialexpressiondata_2.5_3[-c(2)]
+
+
+```
+
+```{r}
+# load progeny library
+library(progeny)
+
+
+# Perform GSEA
+# Create matrix object
+GSEA_matrix_2.5_3<-as.matrix(Top_Differentialexpressiondata_2.5_3)
+
+# Create z-scores
+PathwayActivity_zscore_2.5_3 <- progeny(GSEA_matrix_2.5_3, 
+    scale=TRUE, organism="Human", top = 100, perm = 1000, z_scores = TRUE) %>%
+    t()
+colnames(PathwayActivity_zscore_2.5_3) <- "NES"
+# PROGENy magic
+
+PathwayActivity_zscore_2.5_3_df <- as.data.frame(PathwayActivity_zscore_2.5_3) %>% 
+    rownames_to_column(var = "Pathway") %>%
+    dplyr::arrange(NES) %>%
+    dplyr::mutate(Pathway = factor(Pathway))
+
+ggplot(PathwayActivity_zscore_2.5_3_df,aes(x = reorder(Pathway, NES), y = NES)) + 
+    geom_bar(aes(fill = NES), stat = "identity") +
+    scale_fill_gradient2(low = "darkblue", high = "indianred", 
+        mid = "whitesmoke", midpoint = 0) + 
+    theme_minimal() +
+    theme(axis.title = element_text(face = "bold", size = 12),
+        axis.text.x = 
+            element_text(angle = 45, hjust = 1, size =10, face= "bold"),
+        axis.text.y = element_text(size =10, face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+    xlab("Pathways")
+```
+JAK.STAT, PI3K and EGFR contribute to underenrichment.
+
+#### Genes responsible for pathway enrichment
+```{r}
+# Use same data as for GSEA time but set rownames to column
+Gene_enrichment_2.5_3<-rownames_to_column(Top_Differentialexpressiondata_2.5_3, var = "ID")
+Gene_enrichment_2.5_3<-data.frame(Gene_enrichment_2.5_3)
+# Create PROGENy weights matrix
+prog_matirx<-getModel("Human", top=100) %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("GeneID")
+```
+
+##### JAK.STAT
+```{r}
+scat_plots_jakstat_2.5_3 <- progeny::progenyScatter(df = Gene_enrichment_2.5_3, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_jakstat_2.5_3[[1]]$'JAK-STAT')
+
+# Include heatmap of enriched JAK-STAT genes
+JAKSTAT_enriched_gene_set_2.5_3<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("APOL6","TRIM22","IFI44L","IFI27","IFI6"),]
+# Only colums 6 and AND 7 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+JAKSTAT_enriched_gene_set_2.5_3<-JAKSTAT_enriched_gene_set_2.5_3[-c(1:5,8:10)]
+# heatmap
+pheatmap::pheatmap(JAKSTAT_enriched_gene_set_2.5_3,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched JAK-STAT genes comparison Day 2.5~3", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to JAK-STAT enrichment (blue):
+1. APOL6
+2. TRIM22
+3. IFI44L
+4. IFI27
+5. IFI6
+
+##### PI3K
+```{r}
+scat_plots_PI3K_2.5_3 <- progeny::progenyScatter(df = Gene_enrichment_2.5_3, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_PI3K_2.5_3[[1]]$'PI3K')
+
+# Include heatmap of enriched PI3K genes
+PI3K_enriched_gene_set_2.5_3<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("CTSF","CBX7","SPSB3","MST1","INO80C"),]
+# Only colums 6 and AND 7 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+PI3K_enriched_gene_set_2.5_3<-PI3K_enriched_gene_set_2.5_3[-c(1:5,8:10)]
+# heatmap
+pheatmap::pheatmap(PI3K_enriched_gene_set_2.5_3,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched PI3K genes comparison Day 2.5~3", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+
+```
+Genes contributing to PI3K enrichment (blue):
+1. CTSF
+2. CBX7
+3. SPSB3
+4. MST1
+5. INO80C
+
+##### EGFR
+```{r}
+scat_plots_EGFR_2.5_3 <- progeny::progenyScatter(df = Gene_enrichment_2.5_3, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_EGFR_2.5_3[[1]]$'EGFR')
+
+# Include heatmap of enriched EGFR genes
+EGFR_enriched_gene_set_2.5_3<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("GOLPH3L","PNISR","PCMTD2","VAV3","SYF2","ETFDH","RCOR3","TRIB1","PHLDA2","LAMC2"),]
+# Only colums 6 and AND 7 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+EGFR_enriched_gene_set_2.5_3<-EGFR_enriched_gene_set_2.5_3[-c(1:5,8:10)]
+# heatmap
+pheatmap::pheatmap(EGFR_enriched_gene_set_2.5_3,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched EGFR genes comparison Day 2.5~3", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to PI3K enrichment (red):
+1. GOLPH3L
+
+Genes contributing to PI3K enrichment (blue):
+1. PNISR
+2. PCMTD2
+3. VAV3
+4. SYF2
+5. ETFDH
+6. RCOR3
+7. TRIB1
+8. PHLDA2
+9. LAMC2
+
+#### Heatmap containing all enriched genes
+```{r}
+# include df that contains pathway information column
+JAKSTAT_enriched_gene_set_2.5_3<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("APOL6","TRIM22","IFI44L","IFI27","IFI6"),]
+EGFR_enriched_gene_set_2.5_3<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("GOLPH3L","PNISR","PCMTD2","VAV3","SYF2","ETFDH","RCOR3","TRIB1","PHLDA2","LAMC2"),]
+PI3K_enriched_gene_set_2.5_3<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("CTSF","CBX7","SPSB3","MST1","INO80C"),]
+
+
+  # JAKSTAT
+JAKSTAT_enriched_gene_set_2.5_3['pathway']<-NA
+JAKSTAT_enriched_gene_set_2.5_3$pathway <- ifelse(is.na(JAKSTAT_enriched_gene_set_2.5_3$pathway), 'JAKSTAT', JAKSTAT_enriched_gene_set_2.5_3$pathway)
+  # EGFR
+EGFR_enriched_gene_set_2.5_3['pathway']<-NA
+EGFR_enriched_gene_set_2.5_3$pathway <- ifelse(is.na(EGFR_enriched_gene_set_2.5_3$pathway), 'EGFR', EGFR_enriched_gene_set_2.5_3$pathway)
+  # PI3K
+PI3K_enriched_gene_set_2.5_3['pathway']<-NA
+PI3K_enriched_gene_set_2.5_3$pathway<-ifelse(is.na(PI3K_enriched_gene_set_2.5_3$pathway), 'PI3K', PI3K_enriched_gene_set_2.5_3)
+
+
+# bind dataframes containing pathway info
+Full_enriched_gene_set_2.5_3_alltimepoints_path<- dplyr::bind_rows(JAKSTAT_enriched_gene_set_2.5_3,EGFR_enriched_gene_set_2.5_3,PI3K_enriched_gene_set_2.5_3)
+
+# No overlap of genes within this timepoint comparison exporting is not necessary 
+
+# Metadata/annotation data with gene and pathway info
+Pathway_info_2.5_3<-as.data.frame(Full_enriched_gene_set_2.5_3_alltimepoints_path)
+Pathway_info_2.5_3<-Pathway_info_2.5_3[-c(1:10)]
+
+
+# countmatrix without pathway info for plotting
+Full_enriched_gene_set_2.5_3_alltimepoints<-Full_enriched_gene_set_2.5_3_alltimepoints_path
+Full_enriched_gene_set_2.5_3_alltimepoints<-Full_enriched_gene_set_2.5_3_alltimepoints[-c(11)]
+
+# Determine color annotation pathways
+Pathways        <- c("#f2f0f7", "#dadaeb", "#bcbddc", "#9e9ac8","#756bb1", "#54278f")
+names(Pathways) <- c("JAKSTAT", "MAPK", "EGFR", "EGFR/MAPK","P53","Hypoxia")
+anno_colors <- list(Pathways = Pathways)
+
+
+# Call function
+library(pheatmap)
+pheatmap::pheatmap(Full_enriched_gene_set_2.5_3_alltimepoints, col= myColor, main = "Enriched genes and pathways Day 2.5~3", cluster_cols = FALSE, cluster_rows = TRUE, annotation_colors = anno_colors ,annotation_row = Pathway_info_2.5_3, fontsize_row = 5, border_color = NA, scale = "row")
+```
+
+
+### Differential expression set Day 3 - 4.5
+#### Gene set enrichment analysis
+```{r}
+# Use the datasubsets from the rmd file "Subset_20220224"
+# For this analysis I will use the sets that orders based upon p-value
+Differentialexpressiondata_3_4.5<-data.frame(res3_4.5_p0.05)
+# check how many values are actually significant
+sum(Differentialexpressiondata_3_4.5$padj<0.05, na.rm = TRUE) # 1491 genes
+# create new set that contains the test statistic, the rownames and padj values (we need padj for filtering; you can also do this within dataviewer) 
+Top_Differentialexpressiondata_3_4.5<-data.frame(Differentialexpressiondata_3_4.5$stat, Differentialexpressiondata_3_4.5$padj)
+Top_Differentialexpressiondata_3_4.5$ID<-rownames(Differentialexpressiondata_3_4.5)
+# Change ID's to Gene symbols
+genesgsea_3_4.5<-Top_Differentialexpressiondata_3_4.5$ID
+Gene_gsea_list_3_4.5 <- getBM(filters = "ensembl_gene_id", attributes = c("ensembl_gene_id", "hgnc_symbol"), values = genesgsea_3_4.5, mart = martgsea)
+Top_Differentialexpressiondata_3_4.5<-merge(Top_Differentialexpressiondata_3_4.5, Gene_gsea_list_3_4.5 , by.x="ID", by.y="ensembl_gene_id") 
+# Change column names; this is easier for the next piece of code #15336
+names(Top_Differentialexpressiondata_3_4.5)[1]<-"Ensembl_ID"
+names(Top_Differentialexpressiondata_3_4.5)[2]<-"t"
+names(Top_Differentialexpressiondata_3_4.5)[3]<-"padj"
+names(Top_Differentialexpressiondata_3_4.5)[4]<- "ID"
+# Change empty spaces to NA
+# Replace empty cells with NA # 15108 genes
+Top_Differentialexpressiondata_3_4.5[Top_Differentialexpressiondata_3_4.5 == ""] <- NA
+# Remove NA's # 12852 genes
+Top_Differentialexpressiondata_3_4.5<-na.omit(Top_Differentialexpressiondata_3_4.5)
+# install library
+library(tidyverse)
+# Remove duplicate names 'POLR2J4'
+Top_Differentialexpressiondata_3_4.5<-Top_Differentialexpressiondata_3_4.5[!(Top_Differentialexpressiondata_3_4.5$ID=="POLR2J4"),]
+# set rownames to NULL
+rownames(Top_Differentialexpressiondata_3_4.5)<- NULL
+# Change rownames # in total now 12850 rows/genes
+Top_Differentialexpressiondata_3_4.5<-column_to_rownames(Top_Differentialexpressiondata_3_4.5, var = "ID")
+# Remove ensembl ID's
+Top_Differentialexpressiondata_3_4.5<-Top_Differentialexpressiondata_3_4.5[-c(1)]
+#filter on padj
+Top_Differentialexpressiondata_3_4.5<-Top_Differentialexpressiondata_3_4.5[order(Top_Differentialexpressiondata_3_4.5$padj),]
+# remove p-value
+Top_Differentialexpressiondata_3_4.5<-Top_Differentialexpressiondata_3_4.5[-c(2)]
+                                           
+```
+
+```{r}
+# load progeny library
+library(progeny)
+
+
+# Perform GSEA
+# Create matrix object
+GSEA_matrix_3_4.5<-as.matrix(Top_Differentialexpressiondata_3_4.5)
+
+# Create z-scores
+PathwayActivity_zscore_3_4.5 <- progeny(GSEA_matrix_3_4.5, 
+    scale=TRUE, organism="Human", top = 100, perm = 1000, z_scores = TRUE) %>%
+    t()
+colnames(PathwayActivity_zscore_3_4.5) <- "NES"
+# PROGENy magic
+
+PathwayActivity_zscore_3_4.5_df <- as.data.frame(PathwayActivity_zscore_3_4.5) %>% 
+    rownames_to_column(var = "Pathway") %>%
+    dplyr::arrange(NES) %>%
+    dplyr::mutate(Pathway = factor(Pathway))
+
+ggplot(PathwayActivity_zscore_3_4.5_df,aes(x = reorder(Pathway, NES), y = NES)) + 
+    geom_bar(aes(fill = NES), stat = "identity") +
+    scale_fill_gradient2(low = "darkblue", high = "indianred", 
+        mid = "whitesmoke", midpoint = 0) + 
+    theme_minimal() +
+    theme(axis.title = element_text(face = "bold", size = 12),
+        axis.text.x = 
+            element_text(angle = 45, hjust = 1, size =10, face= "bold"),
+        axis.text.y = element_text(size =10, face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+    xlab("Pathways")
+```
+JAK.stat, MAPK, EGFR AND PI3K are now enriched!
+
+#### Genes responsible for pathway enrichment
+```{r}
+# Use same data as for GSEA time but set rownames to column
+Gene_enrichment_3_4.5<-rownames_to_column(Top_Differentialexpressiondata_3_4.5, var = "ID")
+Gene_enrichment_3_4.5<-data.frame(Gene_enrichment_3_4.5)
+# Create PROGENy weights matrix
+prog_matirx<-getModel("Human", top=100) %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("GeneID")
+```
+
+##### JAK.STAT
+```{r}
+scat_plots_jakstat_3_4.5 <- progeny::progenyScatter(df = Gene_enrichment_3_4.5, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_jakstat_3_4.5[[1]]$'JAK-STAT')
+
+# Include heatmap of enriched JAK-STAT genes
+JAKSTAT_enriched_gene_set_3_4.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("STAT1","IFIH1","XAF1","EPSTI1","IFI44L","TAP2","SP110","SAMD9","DDX60","OAS1","ISG15","IFIT1","IFIH1","OAS2","OAS3","IFI44","MX1","RSAD2","TRIM14","EIFAK2","PARP9","IFI27","DDX58","TRIM38","DDX60L","HERC6","OASL","USP18", "TRANK1","ZC3HAV1","TRIM25","SECTM1","LAMP3"),]
+# Only colums 7 and AND 8 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+JAKSTAT_enriched_gene_set_3_4.5<-JAKSTAT_enriched_gene_set_3_4.5[-c(1:6,9:10)]
+# heatmap
+pheatmap::pheatmap(JAKSTAT_enriched_gene_set_3_4.5,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched JAK-STAT genes comparison Day 3~4.5", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+
+```
+Genes contributing to enrichment (red): 
+1. STAT1
+2. IFIH1
+3. XAF1
+4. EPSTI1
+5. IFI44L
+6. TAP2
+7. SP110
+8. SAMD9
+9. DDX60
+10. OAS1
+11. ISG15
+12. IFIT1
+13. IFIH1
+14. OAS2
+15. OAS3
+16. IFI44
+17. MX1
+18. RSAD2
+19. TRIM14
+20. EIFAK2
+21. PARP9
+22. IFI27
+23. DDX58
+24. TRIM38
+25. DDX60L
+26. HERC6
+27. OASL
+28. USP18
+
+Genes contributing to enrichment (blue):
+1. TRANK1
+2. ZC3HAV1
+3. TRIM25
+4. SECTM1
+5. LAMP3
+
+##### MAPK
+```{r}
+scat_plots_mapk_3_4.5 <- progeny::progenyScatter(df = Gene_enrichment_3_4.5, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_mapk_3_4.5[[1]]$'MAPK')
+
+# Include heatmap of enriched MAPK genes
+MAPK_enriched_gene_set_3_4.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("STK17A","SLCO4A1","SLC35F2","PHLDA1","DUSP6","RAB5B","LAMB2","DNASE2","MGST3","HMGA1"),]
+# Only colums 7 and AND 8 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+MAPK_enriched_gene_set_3_4.5<-MAPK_enriched_gene_set_3_4.5[-c(1:6,9:10)]
+# heatmap
+pheatmap::pheatmap(MAPK_enriched_gene_set_3_4.5,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched MAPK genes comparison Day 3~4.5", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to MAPK enrichment (red):
+1. STK17A
+2. SLCO4A1
+3. SLC35F2
+4. PHLDA1
+5. DUSP6
+6. RAB5B
+7. LAMB2
+8. DNASE2
+9. MGST3
+
+Genes contributing to MAPK enrichment (blue):
+1. HMGA1
+
+##### EGFR
+```{r}
+scat_plots_EGFR_3_4.5 <- progeny::progenyScatter(df = Gene_enrichment_3_4.5, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_EGFR_3_4.5[[1]]$'EGFR')
+
+# Include heatmap of enriched EGFR genes
+EGFR_enriched_gene_set_3_4.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("EGR3","EFHC1","PHLDA1","DUSP6","VAV3","WDR19","LZTFL1", "PLEK2"),]
+# Only columns 7 and AND 8 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+EGFR_enriched_gene_set_3_4.5<-EGFR_enriched_gene_set_3_4.5[-c(1:6,9:10)]
+# heatmap
+pheatmap::pheatmap(EGFR_enriched_gene_set_3_4.5,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched EGFR genes comparison Day 3~4.5", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to EGFR enrichment (red):
+1. EGR3
+2. EFHC1
+3. PHLDA1
+4. DUSP6
+5. VAV3
+6. WDR19
+7. LZTFL1
+
+Genes contributing to EGFR enrichment (blue):
+1. PLEK2
+
+##### PI3K
+```{r}
+scat_plots_PI3K_3_4.5 <- progeny::progenyScatter(df = Gene_enrichment_3_4.5, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_PI3K_3_4.5[[1]]$'PI3K')
+
+# Include heatmap of enriched PI3K genes
+PI3K_enriched_gene_set_3_4.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("CREB3L4","DNAL4","RGS10","CTSF","MST1","DERL3","FAXDC2"),]
+# Only columns 7 and AND 8 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+PI3K_enriched_gene_set_3_4.5<-PI3K_enriched_gene_set_3_4.5[-c(1:6,9:10)]
+# heatmap
+pheatmap::pheatmap(PI3K_enriched_gene_set_3_4.5,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched PI3K genes comparison Day 3~4.5", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to PI3K enrichment (red):
+1. CREB3L4
+2. DNAL4
+3. RGS10
+4. CTSF
+5. MST1
+6. DERL3
+
+Genes contributing to PI3K enrichment (blue):
+1. FAXDC2
+
+#### Heatmap containing all enriched genes
+```{r}
+# include df that contains pathway information column
+JAKSTAT_enriched_gene_set_3_4.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("STAT1","IFIH1","XAF1","EPSTI1","IFI44L","TAP2","SP110","SAMD9","DDX60","OAS1","ISG15","IFIT1","IFIH1","OAS2","OAS3","IFI44","MX1","RSAD2","TRIM14","EIFAK2","PARP9","IFI27","DDX58","TRIM38","DDX60L","HERC6","OASL","USP18", "TRANK1","ZC3HAV1","TRIM25","SECTM1","LAMP3"),]
+MAPK_enriched_gene_set_3_4.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in% c("STK17A","SLCO4A1","SLC35F2","PHLDA1","DUSP6","RAB5B","LAMB2","DNASE2","MGST3","HMGA1"),]
+EGFR_enriched_gene_set_3_4.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("EGR3","EFHC1","PHLDA1","DUSP6","VAV3","WDR19","LZTFL1", "PLEK2"),]
+PI3K_enriched_gene_set_3_4.5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("CREB3L4","DNAL4","RGS10","CTSF","MST1","DERL3","FAXDC2"),]
+
+  # JAKSTAT
+JAKSTAT_enriched_gene_set_3_4.5['pathway']<-NA
+JAKSTAT_enriched_gene_set_3_4.5$pathway <- ifelse(is.na(JAKSTAT_enriched_gene_set_3_4.5$pathway), 'JAKSTAT', JAKSTAT_enriched_gene_set_3_4.5$pathway)
+  # MAPK
+MAPK_enriched_gene_set_3_4.5['pathway']<-NA
+MAPK_enriched_gene_set_3_4.5$pathway <- ifelse(is.na(MAPK_enriched_gene_set_3_4.5$pathway), 'MAPK', MAPK_enriched_gene_set_3_4.5$pathway)
+  # EGFR
+EGFR_enriched_gene_set_3_4.5['pathway']<-NA
+EGFR_enriched_gene_set_3_4.5$pathway <- ifelse(is.na(EGFR_enriched_gene_set_3_4.5$pathway), 'EGFR', EGFR_enriched_gene_set_3_4.5$pathway)
+  # PI3K
+PI3K_enriched_gene_set_3_4.5['pathway']<-NA
+PI3K_enriched_gene_set_3_4.5$pathway<- ifelse(is.na(PI3K_enriched_gene_set_3_4.5$pathway), 'PI3K', PI3K_enriched_gene_set_3_4.5$pathway)
+
+
+# bind dataframes containing pathway info
+Full_enriched_gene_set_3_4.5_alltimep<- dplyr::bind_rows(JAKSTAT_enriched_gene_set_3_4.5,MAPK_enriched_gene_set_3_4.5,EGFR_enriched_gene_set_3_4.5,PI3K_enriched_gene_set_3_4.5)
+
+# we still have duplicate names in this graph as i just merged the 3 pathway sets
+# Export original file without duplicates gene names
+# In excel I added a column with the pathway information e.g. JAKSTAT, TNFa, NFkB, JAKSTAT/NFkB and TNFa/NFkB
+#install.packages("xlsx")
+#library("xlsx")
+#write.xlsx(Full_enriched_gene_set_3_4.5_alltimep, file = "Full_enriched_gene_set_3_4.5_alltimep.xlsx", row.names = TRUE, col.names = TRUE)
+
+# Load new matrix in Rstudio
+# Change first column to rownames
+#library(readxl)
+Full_enriched_gene_set_3_4.5_alltimepoints_path <-  read_excel("data/Combined heatmap datasets counts + gene per pathway/Full_enriched_gene_set_3_4.5_alltimep.xlsx")
+Full_enriched_gene_set_3_4.5_alltimepoints_path<- column_to_rownames(Full_enriched_gene_set_3_4.5_alltimepoints_path, var="...1")
+
+# Metadata/annotation data with gene and pathway info
+Pathway_info_3_4.5<-as.data.frame(Full_enriched_gene_set_3_4.5_alltimepoints_path)
+Pathway_info_3_4.5<-Pathway_info_3_4.5[-c(1:10)]
+#view(Pathway_info_0_0.5)
+
+# countmatrix without pathway info for plotting
+Full_enriched_gene_set_3_4.5_alltimepoints<-Full_enriched_gene_set_3_4.5_alltimepoints_path
+Full_enriched_gene_set_3_4.5_alltimepoints<-Full_enriched_gene_set_3_4.5_alltimepoints[-c(11)]
+
+# Determine color annotation pathways
+Pathways        <- c("#f2f0f7", "#dadaeb", "#bcbddc", "#9e9ac8","#756bb1")
+names(Pathways) <- c("JAKSTAT", "MAPK", "EGFR", "EGFR/MAPK","PI3K")
+anno_colors <- list(Pathways = Pathways)
+
+
+# Call function
+library(pheatmap)
+pheatmap::pheatmap(Full_enriched_gene_set_3_4.5_alltimepoints, col= myColor, main = "Enriched genes and pathways Day 3~4.5", cluster_cols = FALSE, cluster_rows = TRUE, annotation_colors = anno_colors ,annotation_row = Pathway_info_3_4.5, fontsize_row = 5, border_color = NA, scale = "row")
+```
+
+### Differential expression set Day 4.5 - 5
+#### Gene set enrichment analysis
+```{r}
+# Use the datasubsets from the rmd file "Subset_20220224"
+# For this analysis I will use the sets that orders based upon p-value
+Differentialexpressiondata_4.5_5<-data.frame(res4.5_5_p0.05)
+# check how many values are actually significant
+sum(Differentialexpressiondata_4.5_5$padj<0.05, na.rm = TRUE) # 173 genes
+# create new set that contains the test statistic, the rownames and padj values (we need padj for filtering; you can also do this within dataviewer) 
+Top_Differentialexpressiondata_4.5_5<-data.frame(Differentialexpressiondata_4.5_5$stat, Differentialexpressiondata_4.5_5$padj)
+Top_Differentialexpressiondata_4.5_5$ID<-rownames(Differentialexpressiondata_4.5_5)
+# Change ID's to Gene symbols
+genesgsea_4.5_5<-Top_Differentialexpressiondata_4.5_5$ID
+Gene_gsea_list_4.5_5 <- getBM(filters = "ensembl_gene_id", attributes = c("ensembl_gene_id", "hgnc_symbol"), values = genesgsea_4.5_5, mart = martgsea)
+Top_Differentialexpressiondata_4.5_5<-merge(Top_Differentialexpressiondata_4.5_5, Gene_gsea_list_4.5_5 , by.x="ID", by.y="ensembl_gene_id") 
+# Change column names; this is easier for the next piece of code #15336
+names(Top_Differentialexpressiondata_4.5_5)[1]<-"Ensembl_ID"
+names(Top_Differentialexpressiondata_4.5_5)[2]<-"t"
+names(Top_Differentialexpressiondata_4.5_5)[3]<-"padj"
+names(Top_Differentialexpressiondata_4.5_5)[4]<- "ID"
+# Change empty spaces to NA
+# Replace empty cells with NA # 15277 genes
+Top_Differentialexpressiondata_4.5_5[Top_Differentialexpressiondata_4.5_5 == ""] <- NA
+# Remove NA's # 11094 genes
+Top_Differentialexpressiondata_4.5_5<-na.omit(Top_Differentialexpressiondata_4.5_5)
+# install library
+library(tidyverse)
+# set rownames to NULL
+rownames(Top_Differentialexpressiondata_4.5_5)<- NULL
+# Change rownames # in total now 12850 rows/genes
+Top_Differentialexpressiondata_4.5_5<-column_to_rownames(Top_Differentialexpressiondata_4.5_5, var = "ID")
+# Remove ensembl ID's
+Top_Differentialexpressiondata_4.5_5<-Top_Differentialexpressiondata_4.5_5[-c(1)]
+#filter on padj
+Top_Differentialexpressiondata_4.5_5<-Top_Differentialexpressiondata_4.5_5[order(Top_Differentialexpressiondata_4.5_5$padj),]
+# remove p-value
+Top_Differentialexpressiondata_4.5_5<-Top_Differentialexpressiondata_4.5_5[-c(2)]
+```
+
+```{r}
+# load progeny library
+library(progeny)
+
+
+# Perform GSEA
+# Create matrix object
+GSEA_matrix_4.5_5<-as.matrix(Top_Differentialexpressiondata_4.5_5)
+
+# Create z-scores
+PathwayActivity_zscore_4.5_5 <- progeny(GSEA_matrix_4.5_5, 
+    scale=TRUE, organism="Human", top = 100, perm = 1000, z_scores = TRUE) %>%
+    t()
+colnames(PathwayActivity_zscore_4.5_5) <- "NES"
+# PROGENy magic
+
+PathwayActivity_zscore_4.5_5_df <- as.data.frame(PathwayActivity_zscore_4.5_5) %>% 
+    rownames_to_column(var = "Pathway") %>%
+    dplyr::arrange(NES) %>%
+    dplyr::mutate(Pathway = factor(Pathway))
+
+ggplot(PathwayActivity_zscore_4.5_5_df,aes(x = reorder(Pathway, NES), y = NES)) + 
+    geom_bar(aes(fill = NES), stat = "identity") +
+    scale_fill_gradient2(low = "darkblue", high = "indianred", 
+        mid = "whitesmoke", midpoint = 0) + 
+    theme_minimal() +
+    theme(axis.title = element_text(face = "bold", size = 12),
+        axis.text.x = 
+            element_text(angle = 45, hjust = 1, size =10, face= "bold"),
+        axis.text.y = element_text(size =10, face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+    xlab("Pathways")
+```
+JAK.STAT is now underenriched; this pathway shows a lot of changes over time. EGFR and MAPK are now slightly enriched.
+
+#### Genes responsible for pathway enrichment
+```{r}
+# Use same data as for GSEA time but set rownames to column
+Gene_enrichment_4.5_5<-rownames_to_column(Top_Differentialexpressiondata_4.5_5, var = "ID")
+Gene_enrichment_4.5_5<-data.frame(Gene_enrichment_4.5_5)
+# Create PROGENy weights matrix
+prog_matirx<-getModel("Human", top=100) %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("GeneID")
+```
+
+##### JAK.STAT
+```{r}
+scat_plots_jakstat_4.5_5 <- progeny::progenyScatter(df = Gene_enrichment_4.5_5, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_jakstat_4.5_5[[1]]$'JAK-STAT')
+
+# Include heatmap of enriched JAK-STAT genes
+JAKSTAT_enriched_gene_set_4.5_5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("TAP2","DTX3L","IFI27","TDRD7","PLSCR1","OAS3","USP18","TAP2","SP100","ARP12","SP110","DDX58","IFIT3","PHF11","EIF2AK2","PSMB9","SAMD9L","MX2","GBP1","ISG15","DHX58","UBE2L6","OAS2","OAS1","STAT1","IFI6","MX1","RSAD2","EPSTI1","IFIT1","PARP14","PARP9","DDX60","TRIM22","HERC6","DDX60L","IFIH1","XAF1","IFI44","IFI44L","TRIM25","ZC3HAV1","LAMP3"),]
+# Only columns 8 and AND 9 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+JAKSTAT_enriched_gene_set_4.5_5<-JAKSTAT_enriched_gene_set_4.5_5[-c(1:7,10)]
+# heatmap
+pheatmap::pheatmap(JAKSTAT_enriched_gene_set_4.5_5,fontsize=10, fontsize_row = 5, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched JAK-STAT genes comparison Day 4.5~5", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes negatively contributing to enrichment (red): 
+1. TRIM25
+2. ZC3HAV1
+3. LAMP3
+
+Genes positively contributing to enrichment (blue):
+1. TAP2
+2. DTX3L
+3. IFI27
+4. TDRD7
+5. PLSCR1
+6. OAS3
+7. USP18
+8. TAP2
+9. SP100
+10. ARP12
+11. SP110
+12. DDX58
+13. IFIT3
+14. PHF11
+15. EIF2AK2
+16. PSMB9
+17. SAMD9L
+18. MX2
+19. GBP1
+20. ISG15
+21. DHX58
+22. UBE2L6
+23. OAS2
+24. OAS1
+25. STAT1
+26. IFI6
+27. MX1
+28. RSAD2
+29. EPSTI1
+30. IFIT1
+31. PARP14
+32. PARP9
+33. DDX60
+34. TRIM22
+35. HERC6
+36. DDX60L
+37. IFIH1
+38. XAF1
+39. IFI44
+40. IFI44L
+
+
+
+##### EGFR
+```{r}
+scat_plots_EGFR_4.5_5 <- progeny::progenyScatter(df = Gene_enrichment_4.5_5, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_jakstat_4.5_5[[1]]$'EGFR')
+
+# Include heatmap of enriched EGFR genes
+EGFR_enriched_gene_set_4.5_5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("VAV3","FOXN3","ZSCAN31","SH2D5","PHLDA2","TRIB1","BZW1","PHLDA1","ODC1","PNP","TUBB4B","DUSP6","DUSP5","FOSL1","EGR
+"),]
+# Only columns 8 and AND 9 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+EGFR_enriched_gene_set_4.5_5<-EGFR_enriched_gene_set_4.5_5[-c(1:7,10)]
+# heatmap
+pheatmap::pheatmap(EGFR_enriched_gene_set_4.5_5,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched EGFR genes comparison Day 4.5~5", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing EGFR to enrichment (red): 
+1. VAV3
+2. FOXN3
+3. ZSCAN31
+4. SH2D5
+5. PHLDA2
+6. TRIB1
+7. BZW1
+8. PHLDA1
+9. ODC1
+10. PNP
+11. TUBB4B
+12. DUSP6
+13. DUSP5
+14. FOSL1
+15. EGR
+
+##### MAPK
+```{r}
+scat_plots_MAPK_4.5_5 <- progeny::progenyScatter(df = Gene_enrichment_4.5_5, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_jakstat_4.5_5[[1]]$'MAPK')
+
+# Include heatmap of enriched MAPK genes
+MAPK_enriched_gene_set_4.5_5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("PHLDA2","SLC20A1","HMGA1","TRIB1","DUSP5","DUSP6","PRNP","TOP1","PNP","PHLDA1","FOSL1","SH3BGRL","NUP50","LDLR","ETV5","BDH2","MAN2B2","BZW1","TNFRSF10A","GRPEL1","ZSCAN31","SCPEP1","PBX1","PRC","GABARAP"),]
+# Only columns 8 and AND 9 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+MAPK_enriched_gene_set_4.5_5<-MAPK_enriched_gene_set_4.5_5[-c(1:7,10)]
+# heatmap
+pheatmap::pheatmap(MAPK_enriched_gene_set_4.5_5,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched MAPK genes comparison Day 4.5~5", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to MAPK enrichment (red): 
+1. PHLDA2
+2. SLC20A1
+3. HMGA1
+4. TRIB1
+5. DUSP5
+6. DUSP6
+7. PRNP
+8. TOP1
+9. PNP
+10. PHLDA1
+11. FOSL1
+12. SH3BGRL
+13. NUP50
+14. LDLR
+15. ETV5
+16. BDH2
+17. MAN2B2
+18. BZW1
+19. TNFRSF10A
+20. GRPEL1
+21. ZSCAN31
+22. SCPEP1
+23. PBX1
+24. PRCP
+
+Genes contributing to MAPK enrichment (blue):
+1. GABARAP
+
+#### Heatmap containing all enriched genes
+```{r}
+# include df that contains pathway information column
+JAKSTAT_enriched_gene_set_4.5_5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("TAP2","DTX3L","IFI27","TDRD7","PLSCR1","OAS3","USP18","TAP2","SP100","ARP12","SP110","DDX58","IFIT3","PHF11","EIF2AK2","PSMB9","SAMD9L","MX2","GBP1","ISG15","DHX58","UBE2L6","OAS2","OAS1","STAT1","IFI6","MX1","RSAD2","EPSTI1","IFIT1","PARP14","PARP9","DDX60","TRIM22","HERC6","DDX60L","IFIH1","XAF1","IFI44","IFI44L","TRIM25","ZC3HAV1","LAMP3"),]
+EGFR_enriched_gene_set_4.5_5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("VAV3","FOXN3","ZSCAN31","SH2D5","PHLDA2","TRIB1","BZW1","PHLDA1","ODC1","PNP","TUBB4B","DUSP6","DUSP5","FOSL1","EGR
+"),]
+MAPK_enriched_gene_set_4.5_5<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("PHLDA2","SLC20A1","HMGA1","TRIB1","DUSP5","DUSP6","PRNP","TOP1","PNP","PHLDA1","FOSL1","SH3BGRL","NUP50","LDLR","ETV5","BDH2","MAN2B2","BZW1","TNFRSF10A","GRPEL1","ZSCAN31","SCPEP1","PBX1","PRC","GABARAP"),]
+
+  # JAKSTAT
+JAKSTAT_enriched_gene_set_4.5_5['pathway']<-NA
+JAKSTAT_enriched_gene_set_4.5_5$pathway <- ifelse(is.na(JAKSTAT_enriched_gene_set_4.5_5$pathway), 'JAKSTAT', JAKSTAT_enriched_gene_set_4.5_5$pathway)
+  # MAPK
+MAPK_enriched_gene_set_4.5_5['pathway']<-NA
+MAPK_enriched_gene_set_4.5_5$pathway <- ifelse(is.na(MAPK_enriched_gene_set_4.5_5$pathway), 'MAPK', MAPK_enriched_gene_set_4.5_5$pathway)
+  # EGFR
+EGFR_enriched_gene_set_4.5_5['pathway']<-NA
+EGFR_enriched_gene_set_4.5_5$pathway <- ifelse(is.na(EGFR_enriched_gene_set_4.5_5$pathway), 'EGFR', EGFR_enriched_gene_set_4.5_5$pathway)
+
+
+
+# bind dataframes containing pathway info
+Full_enriched_gene_set_4.5_5_alltimep<- dplyr::bind_rows(JAKSTAT_enriched_gene_set_4.5_5,MAPK_enriched_gene_set_4.5_5,EGFR_enriched_gene_set_4.5_5)
+
+# we still have duplicate names in this graph as i just merged the 3 pathway sets
+# Export original file without duplicates gene names
+# In excel I added a column with the pathway information e.g. JAKSTAT, TNFa, NFkB, JAKSTAT/NFkB and TNFa/NFkB
+#install.packages("xlsx")
+#library("xlsx")
+#write.xlsx(Full_enriched_gene_set_4.5_5_alltimep, file = "Full_enriched_gene_set_4.5_5_alltimep.xlsx", row.names = TRUE, col.names = TRUE)
+
+# Load new matrix in Rstudio
+# Change first column to rownames
+#library(readxl)
+Full_enriched_gene_set_4.5_5_alltimepoints_path <-  read_excel("data/Combined heatmap datasets counts + gene per pathway/Full_enriched_gene_set_4.5_5_alltimep.xlsx")
+Full_enriched_gene_set_4.5_5_alltimepoints_path<- column_to_rownames(Full_enriched_gene_set_4.5_5_alltimepoints_path, var="...1")
+
+# Metadata/annotation data with gene and pathway info
+Pathway_info_4.5_5<-as.data.frame(Full_enriched_gene_set_4.5_5_alltimepoints_path)
+Pathway_info_4.5_5<-Pathway_info_4.5_5[-c(1:10)]
+#view(Pathway_info_0_0.5)
+
+# countmatrix without pathway info for plotting
+Full_enriched_gene_set_4.5_5_alltimepoints<-Full_enriched_gene_set_4.5_5_alltimepoints_path
+Full_enriched_gene_set_4.5_5_alltimepoints<-Full_enriched_gene_set_4.5_5_alltimepoints[-c(11)]
+
+# Determine color annotation pathways
+Pathways        <- c("#f2f0f7", "#dadaeb", "#bcbddc", "#9e9ac8")
+names(Pathways) <- c("JAKSTAT", "MAPK", "EGFR", "EGFR/MAPK")
+anno_colors <- list(Pathways = Pathways)
+
+
+# Call function
+library(pheatmap)
+pheatmap::pheatmap(Full_enriched_gene_set_4.5_5_alltimepoints, col= myColor, main = "Enriched genes and pathways Day 4.5~5", cluster_cols = FALSE, cluster_rows = TRUE, annotation_colors = anno_colors ,annotation_row = Pathway_info_4.5_5, fontsize_row = 5, border_color = NA)
+```
+
+### Differential expression set Day 5 - 6
+#### Gene set enrichment analysis
+```{r}
+# Use the datasubsets from the rmd file "Subset_20220224"
+# For this analysis I will use the sets that orders based upon p-value
+Differentialexpressiondata_5_6<-data.frame(res5_6_p0.05)
+# check how many values are actually significant
+sum(Differentialexpressiondata_5_6$padj<0.05, na.rm = TRUE) # 1948 genes
+# create new set that contains the test statistic, the rownames and padj values (we need padj for filtering; you can also do this within dataviewer) 
+Top_Differentialexpressiondata_5_6<-data.frame(Differentialexpressiondata_5_6$stat, Differentialexpressiondata_5_6$padj)
+Top_Differentialexpressiondata_5_6$ID<-rownames(Differentialexpressiondata_5_6)
+# Change ID's to Gene symbols
+genesgsea_5_6<-Top_Differentialexpressiondata_5_6$ID
+Gene_gsea_list_5_6 <- getBM(filters = "ensembl_gene_id", attributes = c("ensembl_gene_id", "hgnc_symbol"), values = genesgsea_5_6, mart = martgsea)
+Top_Differentialexpressiondata_5_6<-merge(Top_Differentialexpressiondata_5_6, Gene_gsea_list_5_6 , by.x="ID", by.y="ensembl_gene_id") 
+# Change column names; this is easier for the next piece of code #15336
+names(Top_Differentialexpressiondata_5_6)[1]<-"Ensembl_ID"
+names(Top_Differentialexpressiondata_5_6)[2]<-"t"
+names(Top_Differentialexpressiondata_5_6)[3]<-"padj"
+names(Top_Differentialexpressiondata_5_6)[4]<- "ID"
+# Change empty spaces to NA
+# Replace empty cells with NA # 12051 genes
+Top_Differentialexpressiondata_5_6[Top_Differentialexpressiondata_5_6 == ""] <- NA
+# Remove NA's # 11094 genes
+Top_Differentialexpressiondata_5_6<-na.omit(Top_Differentialexpressiondata_5_6)
+# install library
+library(tidyverse)
+# set rownames to NULL
+rownames(Top_Differentialexpressiondata_5_6)<- NULL
+# Change rownames # in total now 12051 rows/genes
+Top_Differentialexpressiondata_5_6<-column_to_rownames(Top_Differentialexpressiondata_5_6, var = "ID")
+# Remove ensembl ID's
+Top_Differentialexpressiondata_5_6<-Top_Differentialexpressiondata_5_6[-c(1)]
+#filter on padj
+Top_Differentialexpressiondata_5_6<-Top_Differentialexpressiondata_5_6[order(Top_Differentialexpressiondata_5_6$padj),]
+# remove p-value
+Top_Differentialexpressiondata_5_6<-Top_Differentialexpressiondata_5_6[-c(2)]
+```
+
+```{r}
+# load progeny library
+library(progeny)
+
+
+# Perform GSEA
+# Create matrix object
+GSEA_matrix_5_6<-as.matrix(Top_Differentialexpressiondata_5_6)
+
+# Create z-scores
+PathwayActivity_zscore_5_6 <- progeny(GSEA_matrix_5_6, 
+    scale=TRUE, organism="Human", top = 100, perm = 1000, z_scores = TRUE) %>%
+    t()
+colnames(PathwayActivity_zscore_5_6) <- "NES"
+# PROGENy magic
+
+PathwayActivity_zscore_5_6_df <- as.data.frame(PathwayActivity_zscore_5_6) %>% 
+    rownames_to_column(var = "Pathway") %>%
+    dplyr::arrange(NES) %>%
+    dplyr::mutate(Pathway = factor(Pathway))
+
+ggplot(PathwayActivity_zscore_5_6_df,aes(x = reorder(Pathway, NES), y = NES)) + 
+    geom_bar(aes(fill = NES), stat = "identity") +
+    scale_fill_gradient2(low = "darkblue", high = "indianred", 
+        mid = "whitesmoke", midpoint = 0) + 
+    theme_minimal() +
+    theme(axis.title = element_text(face = "bold", size = 12),
+        axis.text.x = 
+            element_text(angle = 45, hjust = 1, size =10, face= "bold"),
+        axis.text.y = element_text(size =10, face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+    xlab("Pathways")
+```
+Again, JAK.STAT causes enrichment as well as HYPOXIA, NFKB and TNFA.
+
+#### Genes responsible for pathway enrichment
+```{r}
+# Use same data as for GSEA time but set rownames to column
+Gene_enrichment_5_6<-rownames_to_column(Top_Differentialexpressiondata_5_6, var = "ID")
+Gene_enrichment_5_6<-data.frame(Gene_enrichment_5_6)
+# Create PROGENy weights matrix
+prog_matirx<-getModel("Human", top=100) %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("GeneID")
+```
+
+##### JAK.STAT
+```{r}
+scat_plots_jakstat_5_6 <- progeny::progenyScatter(df = Gene_enrichment_5_6, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_jakstat_5_6[[1]]$'JAK-STAT')
+
+# Include heatmap of enriched JAK-STAT genes
+JAKSTAT_enriched_gene_set_5_6<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("IFI44","IFI44L","OAS3","MX2","RSAD2","PARP9","OAS2","OAS1","MX1","IFIT3","IFIT1","PARP14","DDX60L","SAMD9","DDX60","IEIH1","EIF2AK2","PLSCR1","OASL","CMPK2","ISG15","SAMHD1","DTX3L","GBP1","LAMP3"),]
+# Only columns 9 and AND 10 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+JAKSTAT_enriched_gene_set_5_6<-JAKSTAT_enriched_gene_set_5_6[-c(1:8)]
+# heatmap
+pheatmap::pheatmap(JAKSTAT_enriched_gene_set_5_6,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched JAK-STAT genes comparison Day 5~6", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to enrichment (red): 
+1. IFI44
+2. IFI44L
+3. OAS3
+4. MX2
+5. RSAD2
+6. PARP9
+7. OAS2
+8. OAS1
+9. MX1
+10. IFIT3
+11. IFIT1
+12. PARP14
+13. DDX60L
+14. SAMD9
+15. DDX60
+16. IEIH1
+17. EIF2AK2
+18. PLSCR1
+19. OASL
+20. CMPK2
+21. ISG15
+22. SAMHD1
+23. DTX3L
+24. GBP1
+
+Genes contributing to enrichment (blue):
+1. LAMP3
+
+##### Hypoxia
+```{r}
+scat_plots_hypoxia_5_6 <- progeny::progenyScatter(df = Gene_enrichment_5_6, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_hypoxia_5_6[[1]]$'Hypoxia')
+
+# Include heatmap of enriched Hypoxia genes
+Hypoxia_enriched_gene_set_5_6<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("WSB1","LDHA","ADM","BNIP3","PGAM1","C4orf3","ALDOC","NIP3L","ERO1A","RORA","RLF","PGK1","CA9","ZNF292","CCNG2"),]
+# Only columns 9 and AND 10 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+Hypoxia_enriched_gene_set_5_6<-Hypoxia_enriched_gene_set_5_6[-c(1:8)]
+# heatmap
+pheatmap::pheatmap(Hypoxia_enriched_gene_set_5_6,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched Hypoxia genes comparison Day 5~6", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to Hypoxia enrichment (Red):
+1. WSB1
+2. LDHA
+3. ADM
+4. BNIP3
+5. PGAM1
+6. C4orf3
+7. ALDOC
+8. NIP3L
+9. ERO1A
+10. RORA
+11. RLF
+12. PGK1
+13. CA9
+14. ZNF292
+15. CCNG2
+
+##### NFkB
+```{r}
+scat_plots_NFKB_5_6 <- progeny::progenyScatter(df = Gene_enrichment_5_6, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_NFKB_5_6[[1]]$'NFkB')
+
+# Include heatmap of enriched NFkB genes
+NFKB_enriched_gene_set_5_6<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("DRAM1","PRDM1","IFIH1","EFNA1","IL1B","TNFAIP3","EHD1","IL36G","INHBA","MAP3K8","NFKBIA", "UBE2Z","NINJ1"),]
+# Only columns 9 and AND 10 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+NFKB_enriched_gene_set_5_6<-NFKB_enriched_gene_set_5_6[-c(1:8)]
+# heatmap
+pheatmap::pheatmap(NFKB_enriched_gene_set_5_6,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched NFkB genes comparison Day 5~6", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to NFkB enrichment (Red):
+1. DRAM1
+2. PRDM1
+3. IFIH1
+4. EFNA1
+5. IL1B
+6. TNFAIP3
+7. EHD1
+8. IL36G
+9. INHBA
+10. MAP3K8
+11. NFKBIA
+
+Genes contributing to NFkB enrichment (Blue):
+1. UBE2Z
+2. NINJ1
+
+##### TNFa
+```{r}
+scat_plots_TNFa_5_6 <- progeny::progenyScatter(df = Gene_enrichment_5_6, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_TNFa_5_6[[1]]$'TNFa')
+
+# Include heatmap of enriched TNFa genes
+TNFA_enriched_gene_set_5_6<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("KRT6B","RHCG","DRAM1","BMP2","IL36G","EFNA1","TNFAIP3","RHBDL2","MMP10","INHBA","NFKBIA", "UBE2Z","AKR1B1","NINJ1"),]
+# Only columns 9 and AND 10 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+TNFA_enriched_gene_set_5_6<-TNFA_enriched_gene_set_5_6[-c(1:8)]
+# heatmap
+pheatmap::pheatmap(TNFA_enriched_gene_set_5_6,fontsize=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched TNFa genes comparison Day 5~6", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to NFkB enrichment (Red):
+1. KRT6B
+2. RHCG
+3. DRAM1
+4. BMP2
+5. IL36G
+6. EFNA1
+7. TNFAIP3
+8. RHBDL2
+9. MMP10
+10. INHBA
+11. NFKBIA
+
+Genes contributing to NFkB enrichment (Blue):
+1. UBE2Z
+2. AKR1B1
+3. NINJ1
+
+#### Heatmap containing all enriched genes
+```{r}
+# include df that contains pathway information column
+JAKSTAT_enriched_gene_set_5_6<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("IFI44","IFI44L","OAS3","MX2","RSAD2","PARP9","OAS2","OAS1","MX1","IFIT3","IFIT1","PARP14","DDX60L","SAMD9","DDX60","IEIH1","EIF2AK2","PLSCR1","OASL","CMPK2","ISG15","SAMHD1","DTX3L","GBP1","LAMP3"),]
+Hypoxia_enriched_gene_set_5_6<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("WSB1","LDHA","ADM","BNIP3","PGAM1","C4orf3","ALDOC","NIP3L","ERO1A","RORA","RLF","PGK1","CA9","ZNF292","CCNG2"),]
+NFKB_enriched_gene_set_5_6<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("DRAM1","PRDM1","IFIH1","EFNA1","IL1B","TNFAIP3","EHD1","IL36G","INHBA","MAP3K8","NFKBIA", "UBE2Z","NINJ1"),]
+TNFa_enriched_gene_set_5_6<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("KRT6B","RHCG","DRAM1","BMP2","IL36G","EFNA1","TNFAIP3","RHBDL2","MMP10","INHBA","NFKBIA", "UBE2Z","AKR1B1","NINJ1"),]
+
+  # JAKSTAT
+JAKSTAT_enriched_gene_set_5_6['pathway']<-NA
+JAKSTAT_enriched_gene_set_5_6$pathway <- ifelse(is.na(JAKSTAT_enriched_gene_set_5_6$pathway), 'JAKSTAT', JAKSTAT_enriched_gene_set_5_6$pathway)
+  # HYPOXIA
+Hypoxia_enriched_gene_set_5_6['pathway']<-NA
+Hypoxia_enriched_gene_set_5_6$pathway <- ifelse(is.na(Hypoxia_enriched_gene_set_5_6$pathway), 'Hypoxia', Hypoxia_enriched_gene_set_5_6$pathway)
+  # NFkB
+NFKB_enriched_gene_set_5_6['pathway']<-NA
+NFKB_enriched_gene_set_5_6$pathway <- ifelse(is.na(NFKB_enriched_gene_set_5_6$pathway), 'NFkB', NFKB_enriched_gene_set_5_6$pathway)
+  # TNFa
+TNFa_enriched_gene_set_5_6['pathway']<-NA
+TNFa_enriched_gene_set_5_6$pathway <- ifelse(is.na(TNFa_enriched_gene_set_5_6$pathway), 'TNFa', TNFa_enriched_gene_set_5_6$pathway)
+
+
+# bind dataframes containing pathway info
+Full_enriched_gene_set_5_6_alltimep<- dplyr::bind_rows(JAKSTAT_enriched_gene_set_5_6,Hypoxia_enriched_gene_set_5_6,NFKB_enriched_gene_set_5_6,TNFa_enriched_gene_set_5_6)
+
+# we still have duplicate names in this graph as i just merged the 3 pathway sets
+# Export original file without duplicates gene names
+# In excel I added a column with the pathway information e.g. JAKSTAT, TNFa, NFkB, JAKSTAT/NFkB and TNFa/NFkB
+#install.packages("xlsx")
+#library("xlsx")
+#write.xlsx(Full_enriched_gene_set_5_6_alltimep, file = "Full_enriched_gene_set_5_6_alltimep.xlsx", row.names = TRUE, col.names = TRUE)
+
+# Load new matrix in Rstudio
+# Change first column to rownames
+#library(readxl)
+Full_enriched_gene_set_5_6_alltimepoints_path <-  read_excel("data/Combined heatmap datasets counts + gene per pathway/Full_enriched_gene_set_4.5_5_alltimep.xlsx")
+Full_enriched_gene_set_5_6_alltimepoints_path<- column_to_rownames(Full_enriched_gene_set_5_6_alltimepoints_path, var="...1")
+
+# Metadata/annotation data with gene and pathway info
+Pathway_info_5_6<-as.data.frame(Full_enriched_gene_set_5_6_alltimepoints_path)
+Pathway_info_5_6<-Pathway_info_5_6[-c(1:10)]
+#view(Pathway_info_0_0.5)
+
+# countmatrix without pathway info for plotting
+Full_enriched_gene_set_5_6_alltimepoints<-Full_enriched_gene_set_5_6_alltimepoints_path
+Full_enriched_gene_set_5_6_alltimepoints<-Full_enriched_gene_set_5_6_alltimepoints[-c(11)]
+
+# Determine color annotation pathways
+Pathways        <- c("#f2f0f7", "#dadaeb", "#bcbddc", "#9e9ac8", "#756bb1")
+names(Pathways) <- c("JAKSTAT", "Hypoxia", "TNFa", "NFkB", "NFkB/TNFa")
+anno_colors <- list(Pathways = Pathways)
+
+
+# Call function
+library(pheatmap)
+pheatmap::pheatmap(Full_enriched_gene_set_5_6_alltimepoints, col= myColor, main = "Enriched genes and pathways Day 5~6", cluster_cols = FALSE, cluster_rows = TRUE, annotation_colors = anno_colors ,annotation_row = Pathway_info_5_6, fontsize_row = 5, border_color = NA, scale = "row")
+```
+
+
+### Differential expression set Day 0 - 6
+#### Gene set enrichment analysis
+```{r}
+# Use the datasubsets from the rmd file "Subset_20220224"
+# For this analysis I will use the sets that orders based upon p-value
+Differentialexpressiondata_6_0<-data.frame(res6_0_p0.05)
+# check how many values are actually significant
+sum(Differentialexpressiondata_6_0$padj<0.05, na.rm = TRUE) # 5354 genes
+# create new set that contains the test statistic, the rownames and padj values (we need padj for filtering; you can also do this within dataviewer) 
+Top_Differentialexpressiondata_6_0<-data.frame(Differentialexpressiondata_6_0$stat, Differentialexpressiondata_6_0$padj)
+Top_Differentialexpressiondata_6_0$ID<-rownames(Differentialexpressiondata_6_0)
+# Change ID's to Gene symbols
+genesgsea_6_0<-Top_Differentialexpressiondata_6_0$ID
+Gene_gsea_list_6_0 <- getBM(filters = "ensembl_gene_id", attributes = c("ensembl_gene_id", "hgnc_symbol"), values = genesgsea_6_0, mart = martgsea)
+Top_Differentialexpressiondata_6_0<-merge(Top_Differentialexpressiondata_6_0, Gene_gsea_list_6_0 , by.x="ID", by.y="ensembl_gene_id") 
+# Change column names; this is easier for the next piece of code #15336
+names(Top_Differentialexpressiondata_6_0)[1]<-"Ensembl_ID"
+names(Top_Differentialexpressiondata_6_0)[2]<-"t"
+names(Top_Differentialexpressiondata_6_0)[3]<-"padj"
+names(Top_Differentialexpressiondata_6_0)[4]<- "ID"
+# Change empty spaces to NA
+# Replace empty cells with NA # 15610 genes
+Top_Differentialexpressiondata_6_0[Top_Differentialexpressiondata_6_0 == ""] <- NA
+# Remove NA's # 13728 genes
+Top_Differentialexpressiondata_6_0<-na.omit(Top_Differentialexpressiondata_6_0)
+# install library
+library(tidyverse)
+# set rownames to NULL
+rownames(Top_Differentialexpressiondata_6_0)<- NULL
+# Remove duplicate name
+Top_Differentialexpressiondata_6_0<-Top_Differentialexpressiondata_6_0[!(Top_Differentialexpressiondata_6_0$ID=="TNFRSF10A-DT"),]
+# Change rownames # in total now 12051 rows/genes
+rownames(Top_Differentialexpressiondata_6_0)<- NULL
+Top_Differentialexpressiondata_6_0<-column_to_rownames(Top_Differentialexpressiondata_6_0, var = "ID")
+# Remove ensembl ID's
+Top_Differentialexpressiondata_6_0<-Top_Differentialexpressiondata_6_0[-c(1)]
+#filter on padj
+Top_Differentialexpressiondata_6_0<-Top_Differentialexpressiondata_6_0[order(Top_Differentialexpressiondata_6_0$padj),]
+# remove p-value
+Top_Differentialexpressiondata_6_0<-Top_Differentialexpressiondata_6_0[-c(2)]
+```
+
+```{r}
+# load progeny library
+library(progeny)
+
+
+# Perform GSEA
+# Create matrix object
+GSEA_matrix_6_0<-as.matrix(Top_Differentialexpressiondata_6_0)
+
+# Create z-scores
+PathwayActivity_zscore_6_0 <- progeny(GSEA_matrix_6_0, 
+    scale=TRUE, organism="Human", top = 100, perm = 1000, z_scores = TRUE) %>%
+    t()
+colnames(PathwayActivity_zscore_6_0) <- "NES"
+# PROGENy magic
+
+PathwayActivity_zscore_6_0_df <- as.data.frame(PathwayActivity_zscore_6_0) %>% 
+    rownames_to_column(var = "Pathway") %>%
+    dplyr::arrange(NES) %>%
+    dplyr::mutate(Pathway = factor(Pathway))
+
+ggplot(PathwayActivity_zscore_6_0_df,aes(x = reorder(Pathway, NES), y = NES)) + 
+    geom_bar(aes(fill = NES), stat = "identity") +
+    scale_fill_gradient2(low = "darkblue", high = "indianred", 
+        mid = "whitesmoke", midpoint = 0) + 
+    theme_minimal() +
+    theme(axis.title = element_text(face = "bold", size = 12),
+        axis.text.x = 
+            element_text(angle = 45, hjust = 1, size =10, face= "bold"),
+        axis.text.y = element_text(size =10, face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+    xlab("Pathways")
+```
+#### Genes responsible for pathway enrichment
+```{r}
+# Use same data as for GSEA time but set rownames to column
+Gene_enrichment_6_0<-rownames_to_column(Top_Differentialexpressiondata_6_0, var = "ID")
+Gene_enrichment_6_0<-data.frame(Gene_enrichment_6_0)
+# Create PROGENy weights matrix
+prog_matirx<-getModel("Human", top=100) %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("GeneID")
+```
+
+##### P53
+```{r}
+scat_plots_P53_6_0 <- progeny::progenyScatter(df = Gene_enrichment_6_0, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_P53_6_0[[1]]$'p53')
+
+# Include heatmap of enriched p53 genes
+p53_enriched_gene_set_6_0<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("ARHGAP11A","ABCA12","LCE1B","CYSRT1","NECTIN4","CSTA","CES2","GRHL3","GDF15","LCE1C","DGKA","CCDC90B"),]
+# Only columns 1 and AND 10 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+p53_enriched_gene_set_6_0<-p53_enriched_gene_set_6_0[-c(2:9)]
+# heatmap
+pheatmap::pheatmap(p53_enriched_gene_set_6_0,fontsize_row=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched P53 genes comparison Day 0~6", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes negatively contributing to enrichment (red): 
+1. ARHGAP11A
+2. ABCA12
+3. LCE1B
+4. CYSRT1
+5. NECTIN4
+6. CSTA
+7. CES2
+8. GRHL3
+9. GDF15
+10. LCE1C
+
+Genes positively contributing to enrichment (blue):
+1. DGKA
+2. CCDC90B
+
+##### Hypoxia
+```{r}
+scat_plots_hypoxia_6_0 <- progeny::progenyScatter(df = Gene_enrichment_6_0, weight_matrix = prog_matirx, statName = "t_values", verbose = FALSE)
+plot(scat_plots_hypoxia_6_0[[1]]$'Hypoxia')
+
+# Include heatmap of enriched hypoxia genes
+Hypoxia_enriched_gene_set_6_0<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("RORA","TMEM45A","C4orf3","SLC2A1","EFNA3","WSB1","VEGFA","BNIP3L","NDRG1","RLF","FAM162A","MXI1","KDM3A","ADM","EGLN3","GADPH","PKM","WDR54"),]
+# Only columns 1 and AND 10 are interesting here because we're looking at the differential expression between those!
+# Therefore remove other columns
+Hypoxia_enriched_gene_set_6_0<-Hypoxia_enriched_gene_set_6_0[-c(2:9)]
+# heatmap
+pheatmap::pheatmap(Hypoxia_enriched_gene_set_6_0,fontsize_row=10, color = myColor, show_rownames = TRUE,cluster_rows = TRUE, cluster_cols = FALSE, main = "Enriched Hypoxia genes comparison Day 0~6", angle_col = 45, treeheight_col = 0, border_color = NA, scale = "row")
+```
+Genes contributing to enrichment (red): 
+1. RORA
+2. TMEM45A
+3. C4orf3
+4. SLC2A1
+5. EFNA3
+6. WSB1
+7. VEGFA
+8. BNIP3L
+9. NDRG1
+10. RLF
+11. FAM162A
+12. MXI1
+13. KDM3A
+14. ADM
+15. EGLN3
+
+Genes contributing to enrichment (blue):
+1. GADPH
+2. PKM
+3. WDR54
+
+#### Heatmap containing all enriched genes
+```{r, warning=FALSE}
+# include df that contains pathway information column
+p53_enriched_gene_set_6_0<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("ARHGAP11A","ABCA12","LCE1B","CYSRT1","NECTIN4","CSTA","CES2","GRHL3","GDF15","LCE1C","DGKA","CCDC90B"),]
+Hypoxia_enriched_gene_set_6_0<- VST_Mean_Expression_Data[rownames(VST_Mean_Expression_Data) %in%   c("RORA","TMEM45A","C4orf3","SLC2A1","EFNA3","WSB1","VEGFA","BNIP3L","NDRG1","RLF","FAM162A","MXI1","KDM3A","ADM","EGLN3","GADPH","PKM","WDR54"),]
+
+  # P53
+p53_enriched_gene_set_6_0['pathway']<-NA
+p53_enriched_gene_set_6_0$pathway <- ifelse(is.na(p53_enriched_gene_set_6_0$pathway), 'P53', p53_enriched_gene_set_6_0$pathway)
+  # HYPOXIA
+Hypoxia_enriched_gene_set_6_0['pathway']<-NA
+Hypoxia_enriched_gene_set_6_0$pathway <- ifelse(is.na(Hypoxia_enriched_gene_set_6_0$pathway), 'Hypoxia', Hypoxia_enriched_gene_set_6_0$pathway)
+  
+# bind dataframes containing pathway info
+Full_enriched_gene_set_6_0_alltimep<- dplyr::bind_rows(p53_enriched_gene_set_6_0,Hypoxia_enriched_gene_set_6_0)
+
+
+# Metadata/annotation data with gene and pathway info
+Pathway_info_6_0<-as.data.frame(Full_enriched_gene_set_6_0_alltimep)
+Pathway_info_6_0<-Pathway_info_6_0[-c(1:10)]
+#view(Pathway_info_0_0.5)
+
+# countmatrix without pathway info for plotting
+Full_enriched_gene_set_6_0_alltimepoints<-Full_enriched_gene_set_6_0_alltimep
+Full_enriched_gene_set_6_0_alltimepoints<-Full_enriched_gene_set_6_0_alltimep[-c(11)]
+
+# Determine color annotation pathways
+Pathways        <- c("#f2f0f7", "#dadaeb")
+names(Pathways) <- c("p53", "Hypoxia")
+anno_colors <- list(Pathways = Pathways)
+
+
+# Call function
+library(pheatmap)
+pheatmap::pheatmap(Full_enriched_gene_set_6_0_alltimepoints, col= myColor, main = "Enriched genes and pathways Day 0~6", cluster_cols = FALSE, cluster_rows = TRUE, annotation_colors = anno_colors ,annotation_row = Pathway_info_6_0, fontsize_row = 5, border_color = NA, scale = "row")
+```
+
+# Combine all GSEA plots
+```{r, warning=FALSE}
+# install packages and libraries
+if(!require(devtools)) install.packages("devtools")
+devtools::install_github("kassambara/ggpubr")
+
+library(ggpubr)
+
+# Day 0~0.5
+A<-ggplot(PathwayActivity_zscore_0_0.5_df,aes(x = reorder(Pathway, NES), y = NES)) + 
+    geom_bar(aes(fill = NES), stat = "identity") +
+    scale_fill_gradient2(low = "darkblue", high = "indianred", 
+        mid = "whitesmoke", midpoint = 0) + 
+    theme_minimal() +
+    theme(axis.title = element_text(face = "bold", size = 12),
+        axis.text.x = 
+            element_text(angle = 45, hjust = 1, size =10, face= "bold"),
+        axis.text.y = element_text(size =10, face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+    xlab("Pathway enrichment Day 0~0.5")
+
+# Day 0.5~1
+B<-ggplot(PathwayActivity_zscore_0.5_1_df ,aes(x = reorder(Pathway, NES), y = NES)) + 
+    geom_bar(aes(fill = NES), stat = "identity") +
+    scale_fill_gradient2(low = "darkblue", high = "indianred", 
+        mid = "whitesmoke", midpoint = 0) + 
+    theme_minimal() +
+    theme(axis.title = element_text(face = "bold", size = 12),
+        axis.text.x = 
+            element_text(angle = 45, hjust = 1, size =10, face= "bold"),
+        axis.text.y = element_text(size =10, face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+    xlab("Pathway enrichment Day 0.5~1")
+
+# Day 1~1.5
+C<-ggplot(PathwayActivity_zscore_1_1.5_df ,aes(x = reorder(Pathway, NES), y = NES)) + 
+    geom_bar(aes(fill = NES), stat = "identity") +
+    scale_fill_gradient2(low = "darkblue", high = "indianred", 
+        mid = "whitesmoke", midpoint = 0) + 
+    theme_minimal() +
+    theme(axis.title = element_text(face = "bold", size = 12),
+        axis.text.x = 
+            element_text(angle = 45, hjust = 1, size =10, face= "bold"),
+        axis.text.y = element_text(size =10, face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+    xlab("Pathway enrichment Day 1~1.5")
+
+# Day 1.5~2
+D<-ggplot(PathwayActivity_zscore_1.5_2_df ,aes(x = reorder(Pathway, NES), y = NES)) + 
+    geom_bar(aes(fill = NES), stat = "identity") +
+    scale_fill_gradient2(low = "darkblue", high = "indianred", 
+        mid = "whitesmoke", midpoint = 0) + 
+    theme_minimal() +
+    theme(axis.title = element_text(face = "bold", size = 12),
+        axis.text.x = 
+            element_text(angle = 45, hjust = 1, size =10, face= "bold"),
+        axis.text.y = element_text(size =10, face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+    xlab("Pathway enrichment Day 1.5~2")
+
+# Day 2~2.5
+E<-ggplot(PathwayActivity_zscore_2_2.5_df ,aes(x = reorder(Pathway, NES), y = NES)) + 
+    geom_bar(aes(fill = NES), stat = "identity") +
+    scale_fill_gradient2(low = "darkblue", high = "indianred", 
+        mid = "whitesmoke", midpoint = 0) + 
+    theme_minimal() +
+    theme(axis.title = element_text(face = "bold", size = 12),
+        axis.text.x = 
+            element_text(angle = 45, hjust = 1, size =10, face= "bold"),
+        axis.text.y = element_text(size =10, face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+    xlab("Pathway enrichment Day 2~2.5")
+
+# Day 2.5~3
+f<-ggplot(PathwayActivity_zscore_2.5_3_df ,aes(x = reorder(Pathway, NES), y = NES)) + 
+    geom_bar(aes(fill = NES), stat = "identity") +
+    scale_fill_gradient2(low = "darkblue", high = "indianred", 
+        mid = "whitesmoke", midpoint = 0) + 
+    theme_minimal() +
+    theme(axis.title = element_text(face = "bold", size = 12),
+        axis.text.x = 
+            element_text(angle = 45, hjust = 1, size =10, face= "bold"),
+        axis.text.y = element_text(size =10, face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+    xlab("Pathway enrichment Day 2.5~3")
+
+# Day 3~4.5
+G<-ggplot(PathwayActivity_zscore_3_4.5_df ,aes(x = reorder(Pathway, NES), y = NES)) + 
+    geom_bar(aes(fill = NES), stat = "identity") +
+    scale_fill_gradient2(low = "darkblue", high = "indianred", 
+        mid = "whitesmoke", midpoint = 0) + 
+    theme_minimal() +
+    theme(axis.title = element_text(face = "bold", size = 12),
+        axis.text.x = 
+            element_text(angle = 45, hjust = 1, size =10, face= "bold"),
+        axis.text.y = element_text(size =10, face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+    xlab("Pathway enrichment Day 3~4.5")
+
+# Day 4.5~5
+H<-ggplot(PathwayActivity_zscore_4.5_5_df ,aes(x = reorder(Pathway, NES), y = NES)) + 
+    geom_bar(aes(fill = NES), stat = "identity") +
+    scale_fill_gradient2(low = "darkblue", high = "indianred", 
+        mid = "whitesmoke", midpoint = 0) + 
+    theme_minimal() +
+    theme(axis.title = element_text(face = "bold", size = 12),
+        axis.text.x = 
+            element_text(angle = 45, hjust = 1, size =10, face= "bold"),
+        axis.text.y = element_text(size =10, face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+    xlab("Pathway enrichment Day 4.5~5")
+
+# Day 5~6
+
+I<-ggplot(PathwayActivity_zscore_5_6_df ,aes(x = reorder(Pathway, NES), y = NES)) + 
+    geom_bar(aes(fill = NES), stat = "identity") +
+    scale_fill_gradient2(low = "darkblue", high = "indianred", 
+        mid = "whitesmoke", midpoint = 0) + 
+    theme_minimal() +
+    theme(axis.title = element_text(face = "bold", size = 12),
+        axis.text.x = 
+            element_text(angle = 45, hjust = 1, size =10, face= "bold"),
+        axis.text.y = element_text(size =10, face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+    xlab("Pathway enrichment Day 5~6")
+
+
+ggarrange(A, B, C, D, E, f, G, H, I, labels = c("A", "B", "C","D","E","f","G","H","I"),
+          ncol = 3, nrow = 3)
+```
+
+# JAK-STAT dynamics
+```{r}
+# load progeny library
+library(progeny)
+# Merged
+Merged_NES<-rbind(PathwayActivity_zscore_0_0.5_df,PathwayActivity_zscore_0.5_1_df,PathwayActivity_zscore_1_1.5_df,PathwayActivity_zscore_1.5_2_df,PathwayActivity_zscore_2_2.5_df, PathwayActivity_zscore_2.5_3_df,PathwayActivity_zscore_3_4.5_df,PathwayActivity_zscore_4.5_5_df, PathwayActivity_zscore_5_6_df)
+#view(Merged_NES)
+
+# filter on pathway jakstat
+Merged_NES_JAKSTAT<-Merged_NES %>% filter(Pathway == "JAK.STAT")
+#View(Merged_NES_JAKSTAT)
+
+# Create plot
+ggplot(Merged_NES_JAKSTAT,aes(x = rownames(Merged_NES_JAKSTAT), y = NES)) + 
+    geom_bar(aes(fill = NES), stat = "identity") +
+    scale_fill_gradient2(low = "darkblue", high = "indianred", 
+        mid = "whitesmoke", midpoint = 0) + 
+    theme_minimal() +
+    theme(axis.title = element_text(face = "bold", size = 12),
+        axis.text.x = 
+            element_text(angle = 45, hjust = 1, size =10, face= "bold"),
+        axis.text.y = element_text(size =10, face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+   xlab("JAK-STAT dynamics")
+```
+
+# Combine plots for all enriched genes
+```{r}
+# SUBSET1
+# Determine color annotation pathways 
+Pathways        <- c("#f2f0f7", "#dadaeb","#bcbddc","#9e9ac8","#756bb1")
+names(Pathways) <- c("JAKSTAT", "JAKSTAT/NFkB", "NFkB", "TNFa", "TNFa/NFkB")
+anno_colors <- list(Pathways = Pathways)
+
+# Use different colors for in heatmap --->
+MyReds<-brewer.pal(9, "Reds")
+
+# Call function
+library(pheatmap)
+a <-pheatmap(Full_enriched_gene_set_0_0.5_alltimepoints, col= MyReds, main = "Enriched genes and pathways Day 0~0.5", cluster_cols = FALSE, cluster_rows = TRUE, annotation_colors = anno_colors, annotation_row = Pathway_info_0_0.5, fontsize_row = 5, border_color = NA)
+
+# SUBSET2
+# Determine color annotation pathways
+Pathways        <- c("#f2f0f7", "#dadaeb", "#bcbddc", "#9e9ac8", "#756bb1", "#54278f")
+names(Pathways) <- c("TNFa", "NFkB", "JAKSTAT", "TNFa/NFkB", "JAKSTAT/NFkB")
+anno_colors <- list(Pathways = Pathways)
+
+
+# Call function
+library(pheatmap)
+b <-pheatmap::pheatmap(Full_enriched_gene_set_0.5_1_alltimepoints, col= MyReds, main = "Enriched genes and pathways Day 0.5~1", cluster_cols = FALSE, cluster_rows = TRUE, annotation_colors = anno_colors ,annotation_row = Pathway_info_0.5_1, fontsize_row = 5, border_color = NA)
+
+# SUBSET3
+# Determine color annotation pathways
+Pathways        <- c("#f2f0f7", "#dadaeb", "#bcbddc", "#9e9ac8", "#756bb1", "#54278f")
+names(Pathways) <- c("p53", "JAKSTAT", "PI3K", "EGFR", "MAPK","EGFR/MAPK")
+anno_colors <- list(Pathways = Pathways)
+
+
+# Call function
+library(pheatmap)
+c <-pheatmap::pheatmap(Full_enriched_gene_set_1_1.5_alltimepoints, col= MyReds, main = "Enriched genes and pathways Day 1~1.5", cluster_cols = FALSE, cluster_rows = TRUE, annotation_colors = anno_colors ,annotation_row = Pathway_info_1_1.5, fontsize_row = 5, border_color = NA)
+
+# SUBSET4
+# Determine color annotation pathways
+Pathways        <- c("#f2f0f7", "#dadaeb", "#bcbddc", "#9e9ac8")
+names(Pathways) <- c("JAKSTAT", "MAPK", "EGFR", "EGFR/MAPK")
+anno_colors <- list(Pathways = Pathways)
+
+
+# Call function
+library(pheatmap)
+d <-pheatmap::pheatmap(Full_enriched_gene_set_1.5_2_alltimepoints, col= MyReds, main = "Enriched genes and pathways Day 1.5~2", cluster_cols = FALSE, cluster_rows = TRUE, annotation_colors = anno_colors ,annotation_row = Pathway_info_1.5_2, fontsize_row = 5, border_color = NA)
+
+# SUBSET5
+# Determine color annotation pathways
+Pathways        <- c("#f2f0f7", "#dadaeb", "#bcbddc", "#9e9ac8","#756bb1", "#54278f")
+names(Pathways) <- c("JAKSTAT", "MAPK", "EGFR", "EGFR/MAPK","P53","Hypoxia")
+anno_colors <- list(Pathways = Pathways)
+
+
+# Call function
+library(pheatmap)
+e <-pheatmap::pheatmap(Full_enriched_gene_set_2_2.5_alltimepoints, col= MyReds, main = "Enriched genes and pathways Day 2~2.5", cluster_cols = FALSE, cluster_rows = TRUE, annotation_colors = anno_colors ,annotation_row = Pathway_info_2_2.5, fontsize_row = 5, border_color = NA)
+
+# SUBSET6
+# Determine color annotation pathways
+Pathways        <- c("#f2f0f7", "#dadaeb", "#bcbddc", "#9e9ac8","#756bb1", "#54278f")
+names(Pathways) <- c("JAKSTAT", "MAPK", "EGFR", "EGFR/MAPK","P53","Hypoxia")
+anno_colors <- list(Pathways = Pathways)
+
+
+# Call function
+library(pheatmap)
+f <-pheatmap::pheatmap(Full_enriched_gene_set_2.5_3_alltimepoints, col= MyReds, main = "Enriched genes and pathways Day 2.5~3", cluster_cols = FALSE, cluster_rows = TRUE, annotation_colors = anno_colors ,annotation_row = Pathway_info_2.5_3, fontsize_row = 5, border_color = NA)
+
+# SUBSET7
+# Determine color annotation pathways
+Pathways        <- c("#f2f0f7", "#dadaeb", "#bcbddc", "#9e9ac8","#756bb1")
+names(Pathways) <- c("JAKSTAT", "MAPK", "EGFR", "EGFR/MAPK","PI3K")
+anno_colors <- list(Pathways = Pathways)
+
+
+# Call function
+library(pheatmap)
+g <-pheatmap::pheatmap(Full_enriched_gene_set_3_4.5_alltimepoints, col= MyReds, main = "Enriched genes and pathways Day 3~4.5", cluster_cols = FALSE, cluster_rows = TRUE, annotation_colors = anno_colors ,annotation_row = Pathway_info_3_4.5, fontsize_row = 5, border_color = NA)
+
+# SUBSET8
+# Determine color annotation pathways
+Pathways        <- c("#f2f0f7", "#dadaeb", "#bcbddc", "#9e9ac8")
+names(Pathways) <- c("JAKSTAT", "MAPK", "EGFR", "EGFR/MAPK")
+anno_colors <- list(Pathways = Pathways)
+
+
+# Call function
+library(pheatmap)
+h <-pheatmap::pheatmap(Full_enriched_gene_set_4.5_5_alltimepoints, col= MyReds, main = "Enriched genes and pathways Day 4.5~5", cluster_cols = FALSE, cluster_rows = TRUE, annotation_colors = anno_colors ,annotation_row = Pathway_info_4.5_5, fontsize_row = 5, border_color = NA)
+
+# SUBSET9
+# Determine color annotation pathways
+Pathways        <- c("#f2f0f7", "#dadaeb", "#bcbddc", "#9e9ac8", "#756bb1")
+names(Pathways) <- c("JAKSTAT", "Hypoxia", "TNFa", "NFkB", "NFkB/TNFa")
+anno_colors <- list(Pathways = Pathways)
+
+
+# Call function
+library(pheatmap)
+i <-pheatmap::pheatmap(Full_enriched_gene_set_5_6_alltimepoints, col= MyReds, main = "Enriched genes and pathways Day 5~6", cluster_cols = FALSE, cluster_rows = TRUE, annotation_colors = anno_colors ,annotation_row = Pathway_info_5_6, fontsize_row = 5, border_color = NA)
+
+# SUBSET10
+# Determine color annotation pathways
+Pathways        <- c("#f2f0f7", "#dadaeb")
+names(Pathways) <- c("p53", "Hypoxia")
+anno_colors <- list(Pathways = Pathways)
+
+
+# Call function
+library(pheatmap)
+j <-pheatmap::pheatmap(Full_enriched_gene_set_6_0_alltimepoints, col= MyReds, main = "Enriched genes and pathways Day 0~6", cluster_cols = FALSE, cluster_rows = TRUE, annotation_colors = anno_colors ,annotation_row = Pathway_info_6_0, fontsize_row = 5, border_color = NA)
+```
+
+#### Predicting the signalling network
+
+We have the option to look up each separate gene in literature. However, this will take a lot of time for all the comparisons. Therefore, the CAusal Reasoning pipeline for Network identification using Integer VALue programming (CARNIVAL) may be a valuable tool. The aim is to identify a subset of interactions from a prior knowledge network that represents potential regulated pathways. Consequently, it can aid us to identify the upstream regulatory signalling pathways from the downstream gene expression (1).
+
+1. Liu A., Trairatphisan P., Gjerga E. et al. From expression footprints to causal pathways: contextualizing large signaling networks with CARNIVAL npj Systems Biology and Applications volume 5, Article number: 40 (2019) (equal contributions).
+
+```{r}
+# Example of prepping the data as input for carnival
+# use GSEA input # so format that contains gens as rownames and test statistic # GSEA_matrix_0_0.5 
+PathwayActivity_CARNIVALinput_0_0.5<-progeny(GSEA_matrix_0_0.5, 
+    scale=TRUE, organism="Human", top = 100, perm = 10000, z_scores = FALSE) %>%
+    t () %>% 
+    as.data.frame() %>% 
+    tibble::rownames_to_column(var = "Pathway") 
+colnames(PathwayActivity_CARNIVALinput_0_0.5)[2] <- "score"
+```
+
+
+
+
+
+
